@@ -1,0 +1,75 @@
+// app/api/schedule-match/route.ts
+import dbConnect from "@/lib/dbConnect";
+import ScheduledMatch from "@/app/models/ScheduledMatch";
+import Match from "@/app/models/Match";
+
+export async function POST(req: Request) {
+    await dbConnect();
+
+    try {
+        const { 
+            matchId, 
+            homeTeamId, 
+            awayTeamId, 
+            tournamentId, 
+            scheduledDate, 
+            round,
+            matchType  // Added matchType field
+        } = await req.json();
+
+        if (!matchId || !homeTeamId || !awayTeamId || !tournamentId || !scheduledDate || !round) {
+            return Response.json({
+                success: false,
+                message: "All fields are required"
+            }, { status: 400 });
+        }
+
+        // Validate matchType if provided
+        if (matchType && !['quarterfinal', 'semifinal', 'final'].includes(matchType)) {
+            return Response.json({
+                success: false,
+                message: "Invalid match type"
+            }, { status: 400 });
+        }
+
+        // Find and update original match status
+        const originalMatch = await Match.findByIdAndUpdate(
+            matchId,
+            { status: 'scheduled' },
+            { new: true }
+        );
+
+        if (!originalMatch) {
+            return Response.json({
+                success: false,
+                message: "Match not found"
+            }, { status: 404 });
+        }
+
+        // Create scheduled match entry with matchType
+        const scheduledMatch = await ScheduledMatch.create({
+            homeTeamId,
+            awayTeamId,
+            tournamentId,
+            scheduledDate: new Date(scheduledDate),
+            endDate: new Date(new Date(scheduledDate).getTime() + 60 * 60 * 1000),
+            round,
+            matchType  // Added matchType to creation
+        });
+
+        const populatedMatch = await scheduledMatch.populate(['homeTeamId', 'awayTeamId']);
+
+        return Response.json({
+            success: true,
+            message: "Match scheduled successfully",
+            data: populatedMatch
+        }, { status: 200 });
+
+    } catch (error) {
+        console.error('Error scheduling match:', error);
+        return Response.json({
+            success: false,
+            message: "Error scheduling match"
+        }, { status: 500 });
+    }
+}
