@@ -1,4 +1,5 @@
-// app/api/login/route.ts
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import User from "@/app/models/User";
@@ -19,7 +20,13 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email and password are required." },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        }
       );
     }
 
@@ -28,7 +35,13 @@ export async function POST(req: Request) {
     if (!user || user.password !== password) {
       return NextResponse.json(
         { success: false, message: "Invalid email or password." },
-        { status: 401 }
+        { 
+          status: 401,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        }
       );
     }
 
@@ -36,14 +49,22 @@ export async function POST(req: Request) {
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "7d" } // Changed to 7 days
+      { expiresIn: "7d" }
     );
 
     // Create response with the token in a secure cookie
-    const response = NextResponse.json({
-      success: true,
-      user: { id: user._id, email: user.email, role: user.role },
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        user: { id: user._id, email: user.email, role: user.role },
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
+    );
 
     response.cookies.set("auth", token, {
       httpOnly: true,
@@ -62,7 +83,13 @@ export async function POST(req: Request) {
         message: "An error occurred while processing the login.",
         error: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
     );
   }
 }

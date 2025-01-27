@@ -1,10 +1,12 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import BracketTeamModel, { IBracketTeam } from "@/app/models/BracketTeam";
 import TeamModel from "@/app/models/Team";
 import { Types } from "mongoose";
 
-// Define interfaces for type safety
+// Your existing interfaces...
 interface PopulatedTeam {
   _id: Types.ObjectId;
   teamName: string;
@@ -80,7 +82,13 @@ export async function GET(request: Request) {
       return NextResponse.json({
         success: false,
         message: "Tournament ID is required"
-      }, { status: 400 });
+      }, { 
+        status: 400,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
     }
 
     // Get bracket teams with match history
@@ -128,6 +136,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: formattedTeams
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     });
 
   } catch (error) {
@@ -140,6 +153,12 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: false,
       message: "Error fetching bracket teams"
-    }, { status: 500 });
+    }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   }
 }

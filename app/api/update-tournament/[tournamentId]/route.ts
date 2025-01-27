@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';;
 import TournamentModel from '@/app/models/Tournament';
 import { isValidObjectId } from 'mongoose';
@@ -52,6 +53,11 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       data: updatedTournament
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     });
 
   } catch (error) {
@@ -59,6 +65,12 @@ export async function PUT(
     return NextResponse.json({
       success: false,
       message: 'Failed to update tournament'
-    }, { status: 500 });
+    }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   }
 }

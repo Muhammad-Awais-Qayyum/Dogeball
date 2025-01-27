@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';
@@ -347,7 +348,13 @@ export async function PUT(
             }
           }
         }
-      });
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
+    );
     } catch (error) {
       await session.abortTransaction();
       throw error;
@@ -359,7 +366,12 @@ export async function PUT(
     return NextResponse.json({
       success: false,
       message: 'Failed to update match'
-    }, { status: 500 });
+    },{ 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }});
   }
 }
 

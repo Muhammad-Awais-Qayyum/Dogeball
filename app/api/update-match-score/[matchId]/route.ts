@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
@@ -289,7 +290,11 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       success: true, 
       data: updatedMatch,
       allRoundsCompleted
-    });
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }});
   } catch (error) {
     console.error('Error updating match score:', error);
     await session.abortTransaction();
@@ -297,7 +302,13 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
 
     return NextResponse.json(
       { success: false, message: "Error updating match score" },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
     );
   }
 }

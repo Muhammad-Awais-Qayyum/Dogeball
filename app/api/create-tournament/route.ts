@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import TournamentModel from "@/app/models/Tournament";
 import TeamModel from "@/app/models/Team";
@@ -54,17 +57,28 @@ export async function POST(req: Request) {
 
     const createdMatches = await MatchModel.create(matches);
 
-    return Response.json({ 
+    return NextResponse.json({ 
       success: true, 
       data: { tournament, teams: teamsArray, matches: createdMatches }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     });
 
   } catch (error) {
     console.error('Error:', error);
-    return Response.json({ 
+    return NextResponse.json({ 
       success: false, 
       message: "Error creating tournament data",
       error: error instanceof Error ? error.message : String(error) 
-    }, { status: 500 });
+    }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   }
 }

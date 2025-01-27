@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+
+import { NextResponse } from "next/server";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import MatchModel from "@/app/models/Match";
 import dbConnect from "@/lib/dbConnect";
@@ -9,12 +12,18 @@ export async function DELETE(req: Request) {
   const { id } = await req.json();
 
   if (!id) {
-    return Response.json(
+    return NextResponse.json(
       {
         success: false,
         message: "Tournament ID is required.",
       },
-      { status: 400 }
+      { 
+        status: 400,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
     );
   }
 
@@ -24,12 +33,18 @@ export async function DELETE(req: Request) {
     const deletedTournament = await TournamentModel.findByIdAndDelete(id);
 
     if (!deletedTournament) {
-      return Response.json(
+      return NextResponse.json(
         {
           success: false,
           message: "Tournament not found.",
         },
-        { status: 404 }
+        { 
+          status: 404,
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        }
       );
     }
 
@@ -53,7 +68,7 @@ export async function DELETE(req: Request) {
       tournamentId: id,
     });
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: true,
         message: "Tournament deleted successfully.",
@@ -62,17 +77,28 @@ export async function DELETE(req: Request) {
         deletedScheduledMatches: deletedScheduledMatches.deletedCount,
         deletedMatches: deletedMatches.deletedCount,
       },
-      { status: 200 }
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
     );
   } catch (error) {
     console.error("Error deleting tournament:", error);
 
-    return Response.json(
+    return NextResponse.json(
       {
         success: false,
         message: "Error deleting tournament. Please try again.",
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
     );
   }
 }

@@ -1,6 +1,8 @@
+export const dynamic = 'force-dynamic';
 import dbConnect from "@/lib/dbConnect";
 import TeamModel from "@/app/models/Team";
 import { v2 as cloudinary } from "cloudinary";
+import { NextResponse } from "next/server";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -149,17 +151,30 @@ export async function PUT(req: Request) {
       { new: true }
     );
 
-    return new Response(JSON.stringify({
+    return NextResponse.json({
       success: true,
       message: "Team updated successfully",
       data: updatedTeam,
-    }), { status: 200 });
+    }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
+
 
   } catch (error) {
     console.error("Error updating team:", error);
-    return new Response(JSON.stringify({ 
+    return NextResponse.json({ 
       success: false, 
       message: error instanceof Error ? error.message : "Error updating team" 
-    }), { status: 500 });
+    }, { 
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
   }
 }
