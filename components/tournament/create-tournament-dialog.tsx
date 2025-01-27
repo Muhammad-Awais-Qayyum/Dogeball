@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import axios from "axios";
 import { Plus, X } from "lucide-react";
 import {
   Dialog,
@@ -101,25 +102,12 @@ export function CreateTournamentDialog({
   
     try {
       setLoading(true);
-      const response = await fetch("/api/create-tournament", {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to create tournament");
-      }
-
-      if (data.success) {
+      const response = await axios.post("/api/create-tournament", payload);
+  
+      if (response.data.success) {
         toast({
           title: "Success",
-          description: data.message || "Tournament created successfully",
+          description: response.data.message,
         });
   
         // Reset form data
@@ -135,22 +123,30 @@ export function CreateTournamentDialog({
   
         // Refresh the page
         window.location.reload();
-      } else {
-        throw new Error(data.message || "Failed to create tournament");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating tournament:", error);
   
-      if (!navigator.onLine) {
+      // Handle different types of errors
+      if (error.response) {
+        // Server responded with an error
+        toast({
+          title: "Error",
+          description: error.response.data.message || "Failed to create tournament.",
+          variant: "destructive",
+        });
+      } else if (error.request) {
+        // Request was made but no response received
         toast({
           title: "Network Error",
-          description: "Please check your internet connection and try again.",
+          description: "Unable to connect to the server. Please check your internet connection.",
           variant: "destructive",
         });
       } else {
+        // Something else went wrong
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to create tournament",
+          description: "An unexpected error occurred. Please try again.",
           variant: "destructive",
         });
       }
@@ -158,6 +154,8 @@ export function CreateTournamentDialog({
       setLoading(false);
     }
   };
+  
+  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -233,31 +231,32 @@ export function CreateTournamentDialog({
           <div className="space-y-4">
             <label className="text-sm text-gray-400">Teams</label>
             <div 
-              className={cn(
-                "space-y-2",
-                formData.teams.length > 2 && "max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600 scrollbar-track-white/5 pl-2 pt-2 pb-2 pr-2"
-              )}
-            >
-              {formData.teams.map((team, index) => (
-                <div key={index} className="flex gap-3">
-                  <Input
-                    placeholder={`Team ${index + 1}`}
-                    value={team}
-                    onChange={(e) => handleTeamNameChange(index, e.target.value)}
-                    className="bg-white/5 border-white/10 text-white"
-                  />
-                  {index >= 2 && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveTeam(index)}
-                      className="text-gray-400 hover:text-red-500 hover:bg-white/5"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                className={cn(
+                  "space-y-2",
+                  formData.teams.length > 2 && "max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-600 scrollbar-track-white/5 pl-2  pt-2 pb-2 pr-2"
+                )}
+              >
+            {formData.teams.map((team, index) => (
+              <div key={index} className="flex gap-3">
+                <Input
+                  placeholder={`Team ${index + 1}`}
+                  value={team}
+                  onChange={(e) => handleTeamNameChange(index, e.target.value)}
+                  className="bg-white/5 border-white/10 text-white"
+                />
+                {index >= 2 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleRemoveTeam(index)}
+                    className="text-gray-400 hover:text-red-500 hover:bg-white/5"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+             
+            ))}
             </div>
             <Button
               variant="outline"
