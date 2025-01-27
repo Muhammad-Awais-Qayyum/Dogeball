@@ -180,10 +180,10 @@ export function TeamList({
   return (
     <div className="space-y-4 w-full max-w-full overflow-x-hidden px-2 sm:px-4">
       {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <div className="relative pt-2 ">
+        <Search className="absolute left-3 top-1/2  pt-2 -translate-y-1/2 h-6 w-6 text-gray-400" />
         <Input
-          placeholder="Search teams..."
+          placeholder="Search tournaments..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-400 w-full"

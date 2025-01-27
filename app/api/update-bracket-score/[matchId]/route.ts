@@ -3,9 +3,9 @@ import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';
 import Match from '@/app/models/Match';
 import ScheduledMatch from '@/app/models/ScheduledMatch';
+import Tournament from '@/app/models/Tournament';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
-
 
 interface TeamData {
   id: string;
@@ -30,9 +30,7 @@ interface WinnerUpdate {
   nextMatchId?: string | null;
 }
 
-// Helper function to check quarter-finals completion and create semi-final matches
 async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.ObjectId, session: mongoose.ClientSession) {
-  // Check if all quarter-final teams are completed
   const quarterFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.QUARTER_FINALS
@@ -46,7 +44,6 @@ async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.Object
     return;
   }
 
-  // Find semi-final teams that are ready
   const semiFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.SEMI_FINALS,
@@ -55,19 +52,16 @@ async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.Object
   }).sort({ position: 1 }).session(session);
 
   if (semiFinalTeams.length === 4) {
-    // Check if semi-final matches already exist
     const existingSemiFinals = await Match.find({
       tournamentId,
       roundType: 'semiFinal'
     }).session(session);
 
     if (existingSemiFinals.length === 0) {
-      // Group teams by their nextMatchId
       const r2m1Teams = semiFinalTeams.filter(team => team.nextMatchId === 'R2M1');
       const r2m2Teams = semiFinalTeams.filter(team => team.nextMatchId === 'R2M2');
 
       if (r2m1Teams.length === 2 && r2m2Teams.length === 2) {
-        // Create semi-final matches
         const semifinals = [
           {
             tournamentId,
@@ -97,9 +91,7 @@ async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.Object
   }
 }
 
-// Helper function to check semi-finals completion and create final match
 async function handleSemiFinalsCompletion(tournamentId: mongoose.Types.ObjectId, session: mongoose.ClientSession) {
-  // Check if all semi-final teams are completed
   const semiFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.SEMI_FINALS
@@ -113,7 +105,6 @@ async function handleSemiFinalsCompletion(tournamentId: mongoose.Types.ObjectId,
     return;
   }
 
-  // Find final teams that are ready
   const finalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.FINALS,
@@ -122,14 +113,12 @@ async function handleSemiFinalsCompletion(tournamentId: mongoose.Types.ObjectId,
   }).sort({ position: 1 }).session(session);
 
   if (finalTeams.length === 2) {
-    // Check if final match already exists
     const existingFinal = await Match.findOne({
       tournamentId,
       roundType: 'final'
     }).session(session);
 
     if (!existingFinal) {
-      // Create final match
       const finalMatch = {
         tournamentId,
         round: 3,
@@ -162,7 +151,6 @@ export async function PUT(
 
     await dbConnect();
 
-    // Find both bracket teams
     const bracketTeams = await BracketTeamModel.find({
       $or: [
         { originalTeamId: homeTeamData.id },
@@ -181,12 +169,10 @@ export async function PUT(
       }, { status: 404 });
     }
 
-    // Start transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Update scheduled match if exists
       const scheduledMatch = await ScheduledMatch.findOne({
         $and: [
           { homeTeamId: new mongoose.Types.ObjectId(homeTeamData.id) },
@@ -203,13 +189,11 @@ export async function PUT(
         );
       }
 
-      // Determine winner and loser
       const isHomeWinner = homeScore > awayScore;
       const winner = isHomeWinner ? homeTeam : awayTeam;
       const loser = isHomeWinner ? awayTeam : homeTeam;
       const currentStage = getStageFromRound(winner.round);
 
-      // Update match history for both teams
       await BracketTeamModel.findByIdAndUpdate(
         homeTeam._id,
         {
@@ -250,7 +234,6 @@ export async function PUT(
         { session }
       );
 
-      // Update team statistics
       await TeamModel.findByIdAndUpdate(
         homeTeamData.id,
         {
@@ -279,7 +262,6 @@ export async function PUT(
         { session }
       );
 
-      // Update loser status
       await BracketTeamModel.findByIdAndUpdate(
         loser._id,
         {
@@ -289,7 +271,6 @@ export async function PUT(
         { session }
       );
 
-      // Handle winner progression
       const nextRound = winner.round + 1;
       let nextStage = TournamentStage.FINALS;
       let nextMatchId = null;
@@ -323,11 +304,16 @@ export async function PUT(
         { session }
       );
 
-      // Check and handle tournament progression
       if (currentStage === TournamentStage.QUARTER_FINALS) {
         await handleQuarterFinalsCompletion(winner.tournamentId, session);
       } else if (currentStage === TournamentStage.SEMI_FINALS) {
         await handleSemiFinalsCompletion(winner.tournamentId, session);
+      } else if (currentStage === TournamentStage.FINALS) {
+        await Tournament.findByIdAndUpdate(
+          winner.tournamentId,
+          { progress: "Completed" },
+          { session }
+        );
       }
 
       await session.commitTransaction();
@@ -377,7 +363,6 @@ export async function PUT(
   }
 }
 
-// Helper functions remain the same as your original code...
 function getStageFromRound(round: number): TournamentStage {
   switch (round) {
     case 1:
