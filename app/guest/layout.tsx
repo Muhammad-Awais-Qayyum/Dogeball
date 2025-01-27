@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Trophy, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+
 export default function GuestLayout({
   children,
 }: {

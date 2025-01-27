@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import axios from "axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -67,28 +68,13 @@ export function TournamentStandings({ selectedTournamentId }: TournamentStanding
         setLoading(true);
         setError(null);
 
-        const response = await fetch("/api/get-teams", {
-          method: 'POST',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            tournamentId: selectedTournamentId
-          })
+        const response = await axios.post("/api/get-teams", {
+          tournamentId: selectedTournamentId
         });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch teams');
-        }
-
-        const data = await response.json();
         
-        if (data.success) {
-          const sortedTeams = sortTeams(data.data);
+        if (response.data.success) {
+          const sortedTeams = sortTeams(response.data.data) 
           setTeams(sortedTeams);
-        } else {
-          throw new Error(data.message || 'Failed to load teams data');
         }
       } catch (error) {
         console.error("Error fetching teams:", error);

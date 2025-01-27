@@ -2,6 +2,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import axios from "axios";
 
 const QUARTERFINAL_MATCHUPS = [
   { matchId: "R1M1", home: 1, away: 8 },
@@ -125,143 +126,129 @@ export function TournamentBracket({
       if (!tournamentId) return;
 
       try {
-        const response = await fetch(`/api/bracket-team?tournamentId=${tournamentId}`, {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        const response = await axios.get(`/api/bracket-team?tournamentId=${tournamentId}`);
+        
+        if (response.data.success) {
+          const bracketTeams: BracketTeam[] = response.data.data;
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch bracket data');
-        }
-
-        if (!data.success) {
-          throw new Error(data.message || 'Failed to fetch bracket data');
-        }
-
-        const bracketTeams: BracketTeam[] = data.data;
-
-        if (!bracketTeams.length) {
-          setError("No teams available");
-          return;
-        }
-
-        const bracketMatches: Match[] = [];
-        const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
-
-        // Create quarterfinal matches
-        QUARTERFINAL_MATCHUPS.forEach((matchup, i) => {
-          const homeTeam = sortedTeams.find(t => t.position === matchup.home);
-          const awayTeam = sortedTeams.find(t => t.position === matchup.away);
-
-          const homeMatchHistory = homeTeam?.matchHistory.find(m => m.round === 1);
-          const awayMatchHistory = awayTeam?.matchHistory.find(m => m.round === 1);
-
-          const isCompleted = Boolean(homeMatchHistory || awayMatchHistory);
-          let winner: "home" | "away" | undefined;
-          let homeScore: number | undefined;
-          let awayScore: number | undefined;
-
-          if (isCompleted && homeMatchHistory) {
-            homeScore = homeMatchHistory.score;
-            awayScore = homeMatchHistory.opponentScore;
-            winner = homeMatchHistory.won ? "home" : "away";
-          } else if (isCompleted && awayMatchHistory) {
-            homeScore = awayMatchHistory.opponentScore;
-            awayScore = awayMatchHistory.score;
-            winner = awayMatchHistory.won ? "away" : "home";
+          if (!bracketTeams.length) {
+            setError("No teams available");
+            return;
           }
 
-          bracketMatches.push({
-            id: matchup.matchId,
-            round: 1,
-            position: i + 1,
-            homeTeam: homeTeam ? {
-              id: homeTeam.originalTeamId,
-              name: homeTeam.teamName,
-              seed: homeTeam.position,
-              score: homeScore
-            } : null,
-            awayTeam: awayTeam ? {
-              id: awayTeam.originalTeamId,
-              name: awayTeam.teamName,
-              seed: awayTeam.position,
-              score: awayScore
-            } : null,
-            winner,
-            isPlayable: true,
-            isCompleted,
-            nextMatchId: `R2M${Math.ceil((i + 1) / 2)}`
-          });
-        });
+          const bracketMatches: Match[] = [];
+          const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
 
-        // Create subsequent rounds (semifinals and finals)
-        for (let round = 2; round <= 3; round++) {
-          const matchesInRound = round === 2 ? 2 : 1;
-          
-          for (let i = 0; i < matchesInRound; i++) {
-            const matchId = `R${round}M${i + 1}`;
-            const previousRoundMatches = bracketMatches.filter(m => 
-              m.round === round - 1 && 
-              m.nextMatchId === matchId
-            );
+          // Create quarterfinal matches
+          QUARTERFINAL_MATCHUPS.forEach((matchup, i) => {
+            const homeTeam = sortedTeams.find(t => t.position === matchup.home);
+            const awayTeam = sortedTeams.find(t => t.position === matchup.away);
 
-            const teamsInThisMatch = previousRoundMatches.map(match => {
-              if (!match.winner) return null;
-              const team = match.winner === 'home' ? match.homeTeam : match.awayTeam;
-              if (!team) return null;
-              return bracketTeams.find(t => t.originalTeamId === team.id);
-            }).filter((team): team is BracketTeam => team !== null);
+            const homeMatchHistory = homeTeam?.matchHistory.find(m => m.round === 1);
+            const awayMatchHistory = awayTeam?.matchHistory.find(m => m.round === 1);
 
-            teamsInThisMatch.sort((a, b) => a.position - b.position);
-
-            const matchHistory = teamsInThisMatch[0]?.matchHistory.find(m => m.round === round);
-            const isCompleted = Boolean(matchHistory);
-
+            const isCompleted = Boolean(homeMatchHistory || awayMatchHistory);
             let winner: "home" | "away" | undefined;
             let homeScore: number | undefined;
             let awayScore: number | undefined;
 
-            if (isCompleted) {
-              homeScore = matchHistory!.score;
-              awayScore = matchHistory!.opponentScore;
-              winner = matchHistory!.won ? "home" : "away";
+            if (isCompleted && homeMatchHistory) {
+              homeScore = homeMatchHistory.score;
+              awayScore = homeMatchHistory.opponentScore;
+              winner = homeMatchHistory.won ? "home" : "away";
+            } else if (isCompleted && awayMatchHistory) {
+              homeScore = awayMatchHistory.opponentScore;
+              awayScore = awayMatchHistory.score;
+              winner = awayMatchHistory.won ? "away" : "home";
             }
 
             bracketMatches.push({
-              id: matchId,
-              round,
+              id: matchup.matchId,
+              round: 1,
               position: i + 1,
-              homeTeam: teamsInThisMatch[0] ? {
-                id: teamsInThisMatch[0].originalTeamId,
-                name: teamsInThisMatch[0].teamName,
-                seed: teamsInThisMatch[0].position,
+              homeTeam: homeTeam ? {
+                id: homeTeam.originalTeamId,
+                name: homeTeam.teamName,
+                seed: homeTeam.position,
                 score: homeScore
               } : null,
-              awayTeam: teamsInThisMatch[1] ? {
-                id: teamsInThisMatch[1].originalTeamId,
-                name: teamsInThisMatch[1].teamName,
-                seed: teamsInThisMatch[1].position,
+              awayTeam: awayTeam ? {
+                id: awayTeam.originalTeamId,
+                name: awayTeam.teamName,
+                seed: awayTeam.position,
                 score: awayScore
               } : null,
               winner,
-              isPlayable: false,
+              isPlayable: true,
               isCompleted,
-              nextMatchId: round < 3 ? `R${round + 1}M1` : undefined
+              nextMatchId: `R2M${Math.ceil((i + 1) / 2)}`
             });
+          });
+
+          // Create subsequent rounds (semifinals and finals)
+          for (let round = 2; round <= 3; round++) {
+            const matchesInRound = round === 2 ? 2 : 1;
+            
+            for (let i = 0; i < matchesInRound; i++) {
+              const matchId = `R${round}M${i + 1}`;
+              const previousRoundMatches = bracketMatches.filter(m => 
+                m.round === round - 1 && 
+                m.nextMatchId === matchId
+              );
+
+              const teamsInThisMatch = previousRoundMatches.map(match => {
+                if (!match.winner) return null;
+                const team = match.winner === 'home' ? match.homeTeam : match.awayTeam;
+                if (!team) return null;
+                return bracketTeams.find(t => t.originalTeamId === team.id);
+              }).filter((team): team is BracketTeam => team !== null);
+
+              teamsInThisMatch.sort((a, b) => a.position - b.position);
+
+              const matchHistory = teamsInThisMatch[0]?.matchHistory.find(m => m.round === round);
+              const isCompleted = Boolean(matchHistory);
+
+              let winner: "home" | "away" | undefined;
+              let homeScore: number | undefined;
+              let awayScore: number | undefined;
+
+              if (isCompleted) {
+                homeScore = matchHistory!.score;
+                awayScore = matchHistory!.opponentScore;
+                winner = matchHistory!.won ? "home" : "away";
+              }
+
+              bracketMatches.push({
+                id: matchId,
+                round,
+                position: i + 1,
+                homeTeam: teamsInThisMatch[0] ? {
+                  id: teamsInThisMatch[0].originalTeamId,
+                  name: teamsInThisMatch[0].teamName,
+                  seed: teamsInThisMatch[0].position,
+                  score: homeScore
+                } : null,
+                awayTeam: teamsInThisMatch[1] ? {
+                  id: teamsInThisMatch[1].originalTeamId,
+                  name: teamsInThisMatch[1].teamName,
+                  seed: teamsInThisMatch[1].position,
+                  score: awayScore
+                } : null,
+                winner,
+                isPlayable: false,
+                isCompleted,
+                nextMatchId: round < 3 ? `R${round + 1}M1` : undefined
+              });
+            }
           }
+
+          bracketMatches.forEach(match => {
+            match.isPlayable = determineMatchPlayability(match, bracketMatches);
+          });
+
+          setMatches(bracketMatches);
+          setError(null);
         }
-
-        bracketMatches.forEach(match => {
-          match.isPlayable = determineMatchPlayability(match, bracketMatches);
-        });
-
-        setMatches(bracketMatches);
-        setError(null);
       } catch (error) {
         console.error('Error fetching bracket data:', error);
         setError("No teams available");

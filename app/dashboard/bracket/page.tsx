@@ -6,6 +6,7 @@ import { BracketControls } from "@/components/bracket/bracket-controls";
 import { MatchScoringDialog } from "@/components/bracket/match-scoring-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import axios from "axios";
 
 export interface BracketTeam {
   _id: string;
@@ -92,29 +93,14 @@ export default function BracketPage() {
       try {
         setLoading(true);
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        
-        const response = await fetch("/api/get-tournament", {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || "Failed to fetch tournaments");
-        }
-
-        if (data.success && data.data.length > 0) {
+        const response = await axios.get("/api/get-tournament");
+        if (response.data.success && response.data.data.length > 0) {
           setHasTournaments(true);
         }
       } catch (error) {
-        console.error("Error checking tournaments:", error);
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to check tournaments",
+          description: "Failed to check tournaments.",
           variant: "destructive",
         });
       } finally {
@@ -129,22 +115,9 @@ export default function BracketPage() {
     if (!selectedTournament) return;
 
     try {
-      const response = await fetch("/api/get-tournament", {
-        method: "GET",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to refresh tournament data");
-      }
-
-      if (data.success) {
-        const updatedTournament = data.data.find(
+      const response = await axios.get("/api/get-tournament");
+      if (response.data.success) {
+        const updatedTournament = response.data.data.find(
           (t: Tournament) => t._id === selectedTournament._id
         );
         if (updatedTournament) {
@@ -153,10 +126,9 @@ export default function BracketPage() {
         }
       }
     } catch (error) {
-      console.error("Error refreshing tournament data:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to refresh tournament data",
+        description: "Failed to refresh tournament data.",
         variant: "destructive",
       });
     }
@@ -193,30 +165,20 @@ export default function BracketPage() {
     if (!selectedMatch) return;
 
     try {
-      const response = await fetch(`/api/update-bracket-score/${matchId}`, {
-        method: "PUT",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const matchResponse = await axios.put(
+        `/api/update-bracket-score/${matchId}`,
+        {
           homeTeam: selectedMatch.homeTeam,
           awayTeam: selectedMatch.awayTeam,
           homeScore: scores.homeScore,
           awayScore: scores.awayScore,
           homePins: 0,
           awayPins: 0,
-        }),
-      });
+        }
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to update match scores");
-      }
-
-      if (!data.success) {
-        throw new Error(data.message || "Failed to update match scores");
+      if (!matchResponse.data.success) {
+        throw new Error(matchResponse.data.message || "Failed to update match scores");
       }
 
       toast({
@@ -226,10 +188,9 @@ export default function BracketPage() {
 
       await refreshTournamentData();
     } catch (error) {
-      console.error("Error updating match scores:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update match scores",
+        description: "Failed to update match scores.",
         variant: "destructive",
       });
     } finally {
@@ -251,8 +212,8 @@ export default function BracketPage() {
         </div>
       </div>
 
-      <div className="relative overflow-x-auto pb-4 sm:pb-6 lg:pb-8">
-        <div className="min-w-[320px] w-full lg:min-w-[960px] xl:min-w-[1150px]">
+      <div className="relative  overflow-x-auto  pb-4 sm:pb-6 lg:pb-8">
+        <div className="min-w-[320px] w-full lg:min-w-[960px] xl:min-w-[1150px]  ">
           {selectedTournament && (
             <TournamentBracket
               key={refreshKey}

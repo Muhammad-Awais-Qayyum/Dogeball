@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
+import axios from "axios";
 export interface Tournament {
   _id: string;
   tournamentName: string;
@@ -17,6 +17,7 @@ export interface Tournament {
   roundStatuses: boolean[];
   progress: "In Progress" | "Completed";
 }
+
 
 interface BracketControlsProps {
   onTournamentSelect: (tournament: Tournament) => void;
@@ -30,25 +31,12 @@ export function BracketControls({ onTournamentSelect }: BracketControlsProps) {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await fetch('/api/get-tournament', {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch tournaments');
-        }
-
-        if (data.success) {
-          setTournaments(data.data);
-          if (data.data.length > 0) {
-            setSelectedTournamentId(data.data[0]._id);
-            onTournamentSelect(data.data[0]);
+        const response = await axios.get('/api/get-tournament');
+        if (response.data.success) {
+          setTournaments(response.data.data);
+          if (response.data.data.length > 0) {
+            setSelectedTournamentId(response.data.data[0]._id);
+            onTournamentSelect(response.data.data[0]);
           }
         }
       } catch (error) {
@@ -59,7 +47,7 @@ export function BracketControls({ onTournamentSelect }: BracketControlsProps) {
     };
 
     fetchTournaments();
-  }, [onTournamentSelect]);
+  }, []);
 
   const handleTournamentChange = (value: string) => {
     setSelectedTournamentId(value);

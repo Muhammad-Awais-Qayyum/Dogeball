@@ -56,10 +56,6 @@ export default function DashboardLayout({
     try {
       const response = await fetch("/api/logout", {
         method: "POST",
-        cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json'
-        }
       });
 
       if (!response.ok) {

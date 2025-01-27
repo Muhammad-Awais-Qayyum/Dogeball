@@ -7,6 +7,7 @@ import { TournamentCalendar } from "@/components/guest/tournament-calendar";
 import { GuestTournamentBracket } from "@/components/guest/guest-tournament-bracket";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import axios from "axios";
 
 interface Tournament {
   _id: string;
@@ -25,23 +26,10 @@ export default function GuestDashboard() {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await fetch('/api/get-tournament', {
-          method: 'GET',
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch tournaments');
-        }
-
-        const data = await response.json();
-        
-        if (data.success && data.data.length > 0) {
-          setTournaments(data.data);
-          setSelectedTournamentId(data.data[0]._id);
+        const response = await axios.get('/api/get-tournament');
+        if (response.data.success && response.data.data.length > 0) {
+          setTournaments(response.data.data);
+          setSelectedTournamentId(response.data.data[0]._id);
         }
       } catch (error) {
         console.error('Error fetching tournaments:', error);
