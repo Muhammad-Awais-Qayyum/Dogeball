@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
 import { Loader2 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -21,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { format, isFuture, isPast } from "date-fns";
 
+// Types remain the same...
 interface Tournament {
   _id: string;
   tournamentName: string;
@@ -64,6 +64,7 @@ interface Match {
   updatedAt: string;
 }
 
+// Components remain the same...
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[50vh] lg:h-[92vh] w-full">
     <div className="flex flex-col items-center gap-2 md:gap-4 p-4">
@@ -80,6 +81,7 @@ const EmptyState = () => (
   </div>
 );
 
+// Helper functions remain the same...
 function calculatePoints(team: Team): number {
   return (team.wins * 3) + team.ties;
 }
@@ -171,11 +173,24 @@ export default function StandingsPage() {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await axios.get("/api/get-tournament");
-        if (response.data.success) {
-          setTournaments(response.data.data);
-          if (response.data.data.length > 0) {
-            setSelectedTournament(response.data.data[0]._id);
+        const response = await fetch("/api/get-tournament", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to fetch tournaments');
+        }
+
+        if (data.success) {
+          setTournaments(data.data);
+          if (data.data.length > 0) {
+            setSelectedTournament(data.data[0]._id);
           }
         }
       } catch (error) {
@@ -197,9 +212,22 @@ export default function StandingsPage() {
       setHomeTeam(null);
       setAwayTeam(null);
       
-      const matchesResponse = await axios.get("/api/get-all-scheduled-matches");
-      if (matchesResponse.data.success) {
-        const matches = matchesResponse.data.data.filter(
+      const matchesResponse = await fetch("/api/get-all-scheduled-matches", {
+        method: 'GET',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const matchesData = await matchesResponse.json();
+
+      if (!matchesResponse.ok) {
+        throw new Error(matchesData.message || 'Failed to fetch matches');
+      }
+
+      if (matchesData.success) {
+        const matches = matchesData.data.filter(
           (match: Match) => match.tournamentId === selectedTournament
         );
         
@@ -209,15 +237,37 @@ export default function StandingsPage() {
           
           try {
             const [homeTeamRes, awayTeamRes] = await Promise.all([
-              axios.post("/api/get-teams", { teamId: nextMatch.homeTeamId }),
-              axios.post("/api/get-teams", { teamId: nextMatch.awayTeamId })
+              fetch("/api/get-teams", {
+                method: 'POST',
+                cache: 'no-store',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ teamId: nextMatch.homeTeamId }),
+              }),
+              fetch("/api/get-teams", {
+                method: 'POST',
+                cache: 'no-store',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ teamId: nextMatch.awayTeamId }),
+              })
             ]);
+
+            const [homeTeamData, awayTeamData] = await Promise.all([
+              homeTeamRes.json(),
+              awayTeamRes.json()
+            ]);
+
+            if (!homeTeamRes.ok) throw new Error(homeTeamData.message || 'Failed to fetch home team');
+            if (!awayTeamRes.ok) throw new Error(awayTeamData.message || 'Failed to fetch away team');
             
-            if (homeTeamRes.data.success) {
-              setHomeTeam(homeTeamRes.data.data);
+            if (homeTeamData.success) {
+              setHomeTeam(homeTeamData.data);
             }
-            if (awayTeamRes.data.success) {
-              setAwayTeam(awayTeamRes.data.data);
+            if (awayTeamData.success) {
+              setAwayTeam(awayTeamData.data);
             }
           } catch (error) {
             console.error("Error fetching match teams:", error);
@@ -227,19 +277,32 @@ export default function StandingsPage() {
         }
       }
 
-      const teamsResponse = await axios.post("/api/get-teams", {
-        tournamentId: selectedTournament
+      const teamsResponse = await fetch("/api/get-teams", {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tournamentId: selectedTournament
+        }),
       });
 
-      if (teamsResponse.data.success) {
-        const sortedTeams = sortTeams(teamsResponse.data.data);
+      const teamsData = await teamsResponse.json();
+
+      if (!teamsResponse.ok) {
+        throw new Error(teamsData.message || 'Failed to fetch teams');
+      }
+
+      if (teamsData.success) {
+        const sortedTeams = sortTeams(teamsData.data);
         setTeams(sortedTeams);
       }
 
-      setLoading(false);
     } catch (error) {
       console.error("Error fetching data:", error);
-      setError("Failed to load data. Please try again later.");
+      setError(error instanceof Error ? error.message : "Failed to load data. Please try again later.");
+    } finally {
       setLoading(false);
     }
   };
@@ -248,6 +311,7 @@ export default function StandingsPage() {
     fetchData();
   }, [selectedTournament]);
 
+  // Rest of the component (display logic) remains exactly the same...
   const displayTeams = teams;
 
   if (!tournaments.length) {
@@ -265,7 +329,7 @@ export default function StandingsPage() {
       </div>
     );
   }
-
+  
   return (
     <div className="space-y-4 md:space-y-6 lg:space-y-8 p-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

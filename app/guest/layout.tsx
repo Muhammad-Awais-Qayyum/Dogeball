@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { Trophy, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Cookies from "js-cookie";
 
 export default function GuestLayout({
   children,

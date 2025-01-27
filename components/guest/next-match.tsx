@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
 import { format } from "date-fns";
 import { MapPin, Clock, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,10 +40,22 @@ export function NextMatch() {
         setLoading(true);
         setError(null);
 
-        const matchesResponse = await axios.get("/api/get-all-scheduled-matches");
+        const matchesResponse = await fetch("/api/get-all-scheduled-matches", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!matchesResponse.ok) {
+          throw new Error('Failed to fetch matches');
+        }
+
+        const matchesData = await matchesResponse.json();
         
-        if (matchesResponse.data.success) {
-          const matches = matchesResponse.data.data;
+        if (matchesData.success) {
+          const matches = matchesData.data;
           const upcomingMatch = matches.find((match: Match) => 
             match.status === 'scheduled' || match.status === 'in_progress'
           );
@@ -53,15 +64,38 @@ export function NextMatch() {
             setNextMatch(upcomingMatch);
 
             const [homeTeamRes, awayTeamRes] = await Promise.all([
-              axios.post("/api/get-teams", { teamId: upcomingMatch.homeTeamId }),
-              axios.post("/api/get-teams", { teamId: upcomingMatch.awayTeamId })
+              fetch("/api/get-teams", {
+                method: 'POST',
+                cache: 'no-store',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ teamId: upcomingMatch.homeTeamId })
+              }),
+              fetch("/api/get-teams", {
+                method: 'POST',
+                cache: 'no-store',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ teamId: upcomingMatch.awayTeamId })
+              })
             ]);
 
-            if (homeTeamRes.data.success) {
-              setHomeTeam(homeTeamRes.data.data);
+            if (!homeTeamRes.ok || !awayTeamRes.ok) {
+              throw new Error('Failed to fetch team data');
             }
-            if (awayTeamRes.data.success) {
-              setAwayTeam(awayTeamRes.data.data);
+
+            const [homeTeamData, awayTeamData] = await Promise.all([
+              homeTeamRes.json(),
+              awayTeamRes.json()
+            ]);
+
+            if (homeTeamData.success) {
+              setHomeTeam(homeTeamData.data);
+            }
+            if (awayTeamData.success) {
+              setAwayTeam(awayTeamData.data);
             }
           }
         }

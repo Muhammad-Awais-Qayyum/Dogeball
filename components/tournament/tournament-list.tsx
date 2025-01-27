@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { Eye, Trash2, Loader2 } from "lucide-react";
 import {
   Card,
@@ -23,6 +22,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface Tournament {
+  _id: string;
+  tournamentName: string;
+  numberOfTeams: number;
+  numberOfRounds: number;
+  progress: string;
+}
+
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[50vh] sm:min-h-[60vh] lg:min-h-[70vh] w-full px-4">
     <div className="flex flex-col items-center gap-3 sm:gap-4">
@@ -42,9 +49,10 @@ const EmptyState = () => (
     </p>
   </div>
 );
+
 export function TournamentList() {
   const { toast } = useToast();
-  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean;
@@ -57,22 +65,19 @@ export function TournamentList() {
   const fetchTournaments = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/get-tournament");
-      if (response.data.success) {
-        setTournaments(response.data.data);
+      const response = await fetch("/api/get-tournament", { cache: 'no-store' });
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setTournaments(data.data);
       } else {
-        console.error("Error fetching tournaments:", response.data.message);
-        toast({
-          title: "Error",
-          description: "Failed to fetch tournaments",
-          variant: "destructive",
-        });
+        throw new Error(data.message || "Failed to fetch tournaments");
       }
     } catch (error) {
       console.error("Error fetching tournaments:", error);
       toast({
         title: "Error",
-        description: "An error occurred while fetching tournaments",
+        description: error instanceof Error ? error.message : "Failed to fetch tournaments",
         variant: "destructive",
       });
     } finally {
@@ -81,35 +86,40 @@ export function TournamentList() {
   };
 
   const handleDelete = async () => {
-    if (deleteDialog.tournamentId) {
-      try {
-        const response = await axios.delete("/api/delete-tournament", {
-          data: { id: deleteDialog.tournamentId },
-        });
+    if (!deleteDialog.tournamentId) return;
 
-        if (response.data.success) {
-          setTournaments(tournaments.filter(tournament => tournament._id !== deleteDialog.tournamentId));
-          setDeleteDialog({ isOpen: false, tournamentId: null });
-          toast({
-            title: "Success",
-            description: response.data.message,
-          });
-        } else {
-          console.error("Error deleting tournament:", response.data.message);
-          toast({
-            title: "Error",
-            description: response.data.message,
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error("Error deleting tournament:", error);
+    try {
+      const response = await fetch("/api/delete-tournament", {
+        method: "DELETE",
+        cache: 'no-store',
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: deleteDialog.tournamentId }),
+      });
+      
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setTournaments((prev) => 
+          prev.filter(tournament => tournament._id !== deleteDialog.tournamentId)
+        );
         toast({
-          title: "Error",
-          description: "An error occurred while deleting the tournament.",
-          variant: "destructive",
+          title: "Success",
+          description: data.message || "Tournament deleted successfully",
         });
+      } else {
+        throw new Error(data.message || "Failed to delete tournament");
       }
+    } catch (error) {
+      console.error("Error deleting tournament:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete tournament",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialog({ isOpen: false, tournamentId: null });
     }
   };
 
@@ -175,7 +185,7 @@ export function TournamentList() {
       <AlertDialog
         open={deleteDialog.isOpen}
         onOpenChange={(isOpen) =>
-          setDeleteDialog({ isOpen, tournamentId: null })
+          setDeleteDialog({ isOpen, tournamentId: isOpen ? deleteDialog.tournamentId : null })
         }
       >
         <AlertDialogContent className="bg-gray-900 border-white/10 max-w-[90vw] sm:max-w-lg w-full p-6 sm:p-8">

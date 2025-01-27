@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { cn } from "@/lib/utils";
-import axios from "axios";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -122,13 +121,25 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
         setError(null);
         
         // Fetch all tournaments and find the selected one
-        const tournamentResponse = await axios.get('/api/get-tournament');
-        
-        if (!tournamentResponse.data || !tournamentResponse.data.success) {
+        const tournamentResponse = await fetch('/api/get-tournament', {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!tournamentResponse.ok) {
           throw new Error("Failed to fetch tournament data");
         }
 
-        const tournaments: Tournament[] = tournamentResponse.data.data;
+        const tournamentData = await tournamentResponse.json();
+        
+        if (!tournamentData || !tournamentData.success) {
+          throw new Error("Failed to fetch tournament data");
+        }
+
+        const tournaments: Tournament[] = tournamentData.data;
         const tournament = tournaments.find(t => t._id === selectedTournamentId);
         
         if (!tournament) {
@@ -145,13 +156,25 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
         }
 
         // Fetch bracket data
-        const bracketResponse = await axios.get(`/api/bracket-team?tournamentId=${selectedTournamentId}`);
-        
-        if (!bracketResponse.data || !bracketResponse.data.success) {
+        const bracketResponse = await fetch(`/api/bracket-team?tournamentId=${selectedTournamentId}`, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!bracketResponse.ok) {
           throw new Error("Failed to fetch bracket data");
         }
 
-        const bracketTeams: BracketTeam[] = bracketResponse.data.data;
+        const bracketData = await bracketResponse.json();
+        
+        if (!bracketData || !bracketData.success) {
+          throw new Error("Failed to fetch bracket data");
+        }
+
+        const bracketTeams: BracketTeam[] = bracketData.data;
         
         if (!Array.isArray(bracketTeams)) {
           throw new Error("Invalid bracket data format");
@@ -409,4 +432,4 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
        </CardContent>
      </Card>
    );
- }
+}

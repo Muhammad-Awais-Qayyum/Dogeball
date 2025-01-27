@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,10 +57,22 @@ export function TournamentCalendar() {
     const fetchMatches = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/get-all-scheduled-matches");
+        const response = await fetch("/api/get-all-scheduled-matches", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch matches');
+        }
+
+        const data = await response.json();
         
-        if (response.data.success) {
-          const matchEvents: CalendarEvent[] = response.data.data
+        if (data.success) {
+          const matchEvents: CalendarEvent[] = data.data
             .filter((match: ScheduledMatch) => 
               match.scheduledDate && 
               match.homeTeamId?.teamName && 

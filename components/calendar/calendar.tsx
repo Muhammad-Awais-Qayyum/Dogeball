@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
-import axios from "axios";
 import {
   format,
   parse,
@@ -84,9 +83,22 @@ export function Calendar({
   useEffect(() => {
     const fetchScheduledMatches = async () => {
       try {
-        const response = await axios.get("/api/get-all-scheduled-matches");
-        if (response.data.success) {
-          const formattedMatches = response.data.data.map((match: any) => ({
+        const response = await fetch("/api/get-all-scheduled-matches", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to fetch scheduled matches');
+        }
+
+        if (data.success) {
+          const formattedMatches = data.data.map((match: any) => ({
             id: match._id,
             title: `${match.homeTeamId.teamName} vs ${match.awayTeamId.teamName}`,
             start: new Date(match.scheduledDate),
@@ -110,11 +122,16 @@ export function Calendar({
         }
       } catch (error) {
         console.error("Error fetching matches:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to fetch scheduled matches",
+          variant: "destructive",
+        });
       }
     };
 
     fetchScheduledMatches();
-  }, []);
+  }, [toast]);
 
   const handleScoreSubmit = async (scores: {
     homeScore: number;
@@ -123,34 +140,50 @@ export function Calendar({
     awayPins: number;
     status: "completed";
   }) => {
-    if (scoringState.match) {
-      try {
-        const response = await axios.put(`/api/update-match-score/${scoringState.match.id}`, scores);
-        
-        if (response.data.success) {
-          setScheduledMatches((prev) =>
-            prev.map((match) =>
-              match.id === scoringState.match.id
-                ? {
-                    ...match,
-                    status: "completed",
-                  }
-                : match
-            )
-          );
+    if (!scoringState.match) return;
 
-          toast({
-            title: "Success",
-            description: "Match score updated successfully",
-          });
-        }
-      } catch (error) {
+    try {
+      const response = await fetch(`/api/update-match-score/${scoringState.match.id}`, {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scores),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update match score');
+      }
+        
+      if (data.success) {
+        setScheduledMatches((prev) =>
+          prev.map((match) =>
+            match.id === scoringState.match.id
+              ? {
+                  ...match,
+                  status: "completed",
+                }
+              : match
+          )
+        );
+
         toast({
-          title: "Error",
-          description: "Failed to update match score",
-          variant: "destructive",
+          title: "Success",
+          description: "Match score updated successfully",
         });
       }
+    } catch (error) {
+      console.error("Error updating match score:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update match score",
+        variant: "destructive",
+      });
+    } finally {
+      setScoringState({ isOpen: false, match: null });
     }
   };
 
@@ -268,12 +301,11 @@ export function Calendar({
           }
         }}
         className={cn(
-          "h-[calc(100vh-10rem)] bg-white/5 rounded-lg   p-4",
+          "h-[calc(100vh-10rem)] bg-white/5 rounded-lg p-4",
           isEditing && "cursor-copy",
           isOver && "ring-2 ring-blue-500/50"
         )}
       >
-        
         <BigCalendar
           localizer={localizer}
           events={[...events, ...scheduledMatches]}

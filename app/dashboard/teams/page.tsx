@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { TeamList } from "@/components/teams/team-list";
 import { TeamEditor } from "@/components/teams/team-editor";
 import { Loader2 } from "lucide-react";
-import axios from "axios";
 
 const LoadingState = () => (
   <div className="flex items-center justify-center min-h-[92vh]">
@@ -40,11 +39,24 @@ export default function TeamsPage() {
     const checkTournaments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/get-tournament");
-        setHasTournaments(response.data.success && response.data.data?.length > 0);
-      } catch (err) {
+        const response = await fetch("/api/get-tournament", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to fetch tournaments');
+        }
+
+        setHasTournaments(data.success && data.data?.length > 0);
+      } catch (error) {
         setError("Failed to load tournaments");
-        console.error("Error checking tournaments:", err);
+        console.error("Error checking tournaments:", error);
       } finally {
         setLoading(false);
       }

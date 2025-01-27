@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { Search, Trash2, ChevronRight, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -71,15 +70,28 @@ export function TeamList({
     const fetchTournaments = async () => {
       try {
         setLoading(true);
-        const response = await axios.get("/api/get-tournament");
-        if (response.data.success) {
-          setTournaments(response.data.data || []);
-        } else {
-          setError(response.data.message);
+        const response = await fetch("/api/get-tournament", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to fetch tournaments');
         }
-      } catch (err) {
+
+        if (data.success) {
+          setTournaments(data.data || []);
+        } else {
+          setError(data.message);
+        }
+      } catch (error) {
         setError("Failed to load tournaments");
-        console.error("Error fetching tournaments:", err);
+        console.error("Error fetching tournaments:", error);
       } finally {
         setLoading(false);
       }
@@ -96,21 +108,34 @@ export function TeamList({
       }
 
       try {
-        const response = await axios.post("/api/get-teams", {
-          tournamentId: selectedTournament,
+        const response = await fetch("/api/get-teams", {
+          method: 'POST',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tournamentId: selectedTournament,
+          }),
         });
 
-        if (response.data.success) {
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to fetch teams');
+        }
+
+        if (data.success) {
           setTeams(prev => ({
             ...prev,
-            [selectedTournament]: response.data.data || []
+            [selectedTournament]: data.data || []
           }));
         } else {
-          setError(response.data.message);
+          setError(data.message);
         }
-      } catch (err) {
+      } catch (error) {
         setError("Failed to load teams");
-        console.error("Error fetching teams:", err);
+        console.error("Error fetching teams:", error);
       }
     };
 
@@ -121,11 +146,22 @@ export function TeamList({
 
   const handleDeleteTeam = async (teamId: string) => {
     try {
-      const response = await axios.delete('/api/delete-team', {
-        data: { teamId }
+      const response = await fetch('/api/delete-team', {
+        method: 'DELETE',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ teamId }),
       });
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete team');
+      }
+
+      if (data.success) {
         setTeams(prev => {
           const newTeams = { ...prev };
           Object.keys(newTeams).forEach(tournamentId => {
@@ -145,17 +181,13 @@ export function TeamList({
           description: "Team deleted successfully",
         });
       } else {
-        toast({
-          title: "Error",
-          description: response.data.message,
-          variant: "destructive",
-        });
+        throw new Error(data.message || 'Failed to delete team');
       }
     } catch (error) {
       console.error("Error deleting team:", error);
       toast({
         title: "Error",
-        description: "Failed to delete team",
+        description: error instanceof Error ? error.message : "Failed to delete team",
         variant: "destructive",
       });
     } finally {
@@ -180,8 +212,8 @@ export function TeamList({
   return (
     <div className="space-y-4 w-full max-w-full overflow-x-hidden px-2 sm:px-4">
       {/* Search Input */}
-      <div className="relative pt-2 ">
-        <Search className="absolute left-3 top-1/2  pt-2 -translate-y-1/2 h-6 w-6 text-gray-400" />
+      <div className="relative pt-2">
+        <Search className="absolute left-3 top-1/2 pt-2 -translate-y-1/2 h-6 w-6 text-gray-400" />
         <Input
           placeholder="Search tournaments..."
           value={searchQuery}
@@ -264,7 +296,6 @@ export function TeamList({
         ))}
       </div>
 
-     
       <AlertDialog
         open={deleteDialog.isOpen}
         onOpenChange={(isOpen) =>
@@ -272,7 +303,7 @@ export function TeamList({
         }
       >
         <AlertDialogContent className="bg-gray-900 border-white/10 w-[95vw] max-w-md mx-auto">
-        <AlertDialogHeader>
+          <AlertDialogHeader>
             <AlertDialogTitle className="text-white">
               Delete Team
             </AlertDialogTitle>

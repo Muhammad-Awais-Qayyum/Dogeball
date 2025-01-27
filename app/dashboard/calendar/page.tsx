@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios, { AxiosError } from "axios";
 import { Calendar } from "@/components/calendar/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,13 +74,6 @@ interface UnscheduledMatchProps {
   isEditing: boolean;
 }
 
-interface Scores {
-  homeScore: number;
-  awayScore: number;
-  homePins: number;
-  awayPins: number;
-}
-
 // Helper Functions
 const getMatchType = (roundType: RoundType): MatchType | undefined => {
   switch (roundType) {
@@ -109,7 +101,7 @@ const getRoundLabel = (roundType: RoundType, roundNumber: number): string => {
   }
 };
 
-// States Components
+// Components
 const LoadingState = () => (
   <div className="flex items-center justify-center h-[92vh]">
     <div className="flex flex-col items-center gap-4">
@@ -126,7 +118,6 @@ const NoTournamentsState = () => (
   </div>
 );
 
-// UnscheduledMatch Component
 const UnscheduledMatch: React.FC<UnscheduledMatchProps> = ({ match, isEditing }) => {
   const [{ isDragging }, drag] = useDrag({
     type: "match",
@@ -156,7 +147,6 @@ const UnscheduledMatch: React.FC<UnscheduledMatchProps> = ({ match, isEditing })
   );
 };
 
-// RoundGroup Component
 const RoundGroup: React.FC<{
   roundData: RoundGroup;
   isEditing: boolean;
@@ -210,27 +200,52 @@ export default function CalendarPage() {
     const checkTournamentsAndFetchMatches = async () => {
       try {
         setLoading(true);
-        const tournamentsResponse = await axios.get("/api/get-tournament");
-        if (!tournamentsResponse.data.success || tournamentsResponse.data.data.length === 0) {
+        const tournamentsResponse = await fetch("/api/get-tournament", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const tournamentsData = await tournamentsResponse.json();
+
+        if (!tournamentsResponse.ok) {
+          throw new Error(tournamentsData.message || 'Failed to fetch tournaments');
+        }
+
+        if (!tournamentsData.success || tournamentsData.data.length === 0) {
           setHasTournaments(false);
-          setLoading(false);
           return;
         }
 
         setHasTournaments(true);
 
-        const matchesResponse = await axios.get("/api/get-match");
-        
-        if (!matchesResponse.data || 
-            matchesResponse.data.message === "No matches found." || 
-            matchesResponse.data.message === "All matches are scheduled.") {
+        const matchesResponse = await fetch("/api/get-match", {
+          method: 'GET',
+          cache: 'no-store',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const matchesData = await matchesResponse.json();
+
+        if (!matchesResponse.ok) {
+          throw new Error(matchesData.message || 'Failed to fetch matches');
+        }
+
+        if (!matchesData || 
+            matchesData.message === "No matches found." || 
+            matchesData.message === "All matches are scheduled.") {
           setRoundGroups([]);
           setScheduledMatches([]);
           return;
         }
 
-        const matches = matchesResponse.data as Match[];
+        const matches = matchesData as Match[];
         
+        // Group matches logic...
         const groupedMatches = matches.reduce<Record<string, RoundGroup>>((groups, match) => {
           const key = `${match.round}-${match.roundType}`;
           if (!groups[key]) {
@@ -268,6 +283,7 @@ export default function CalendarPage() {
 
         setRoundGroups(sortedGroups);
 
+        // Map scheduled matches
         const scheduled = matches
           .filter(match => match.status === 'scheduled' && match.scheduledDate)
           .map(match => ({
@@ -297,6 +313,11 @@ export default function CalendarPage() {
         setScheduledMatches(scheduled);
       } catch (error) {
         console.error('Error:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to fetch data",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
@@ -309,18 +330,31 @@ export default function CalendarPage() {
     try {
       const matchType = getMatchType(match.roundType);
 
-      const response = await axios.post<{ success: boolean }>('/api/schedule-match', {
-        matchId: match._id,
-        homeTeamId: match.homeTeamId,
-        awayTeamId: match.awayTeamId,
-        scheduledDate: date,
-        tournamentId: match.tournamentId,
-        round: match.round,
-        roundType: match.roundType,
-        matchType: matchType
+      const response = await fetch('/api/schedule-match', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          matchId: match._id,
+          homeTeamId: match.homeTeamId,
+          awayTeamId: match.awayTeamId,
+          scheduledDate: date,
+          tournamentId: match.tournamentId,
+          round: match.round,
+          roundType: match.roundType,
+          matchType: matchType
+        }),
       });
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to schedule match');
+      }
+
+      if (data.success) {
         const scheduledMatch: ScheduledMatch = {
           id: match._id,
           start: date,
@@ -359,11 +393,11 @@ export default function CalendarPage() {
           description: "Match scheduled successfully"
         });
       }
-    } catch (err) {
-      console.error('Error scheduling match:', err);
+    } catch (error) {
+      console.error('Error scheduling match:', error);
       toast({
         title: "Error",
-        description: "Failed to schedule match",
+        description: error instanceof Error ? error.message : "Failed to schedule match",
         variant: "destructive"
       });
     }

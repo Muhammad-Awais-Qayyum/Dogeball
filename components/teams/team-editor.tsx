@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import axios from "axios";
 
 interface IPhoto {
   url: string | null;
@@ -50,28 +49,37 @@ export function TeamEditor({ teamId, onTeamUpdated }: TeamEditorProps) {
   const fetchTeamData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.post('/api/get-teams', {
-        teamId: teamId
+      const response = await fetch('/api/get-teams', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          teamId: teamId
+        }),
       });
 
-      if (response.data.success) {
-        const teamData: TeamData = response.data.data;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch team data');
+      }
+
+      if (data.success) {
+        const teamData: TeamData = data.data;
         setTeamName(teamData.teamName);
         setTeamImage(teamData.teamPhoto?.url || null);
         setTeamMembers(teamData.teamMembers || []);
         setSubstitutePlayers(teamData.substitutePlayers || []);
       } else {
-        toast({
-          title: "Error",
-          description: response.data.message,
-          variant: "destructive",
-        });
+        throw new Error(data.message || 'Failed to fetch team data');
       }
     } catch (error) {
       console.error("Error fetching team data:", error);
       toast({
         title: "Error",
-        description: "Failed to load team data.",
+        description: error instanceof Error ? error.message : "Failed to load team data",
         variant: "destructive",
       });
     } finally {
@@ -204,32 +212,42 @@ export function TeamEditor({ teamId, onTeamUpdated }: TeamEditorProps) {
 
   const handleSave = async () => {
     try {
-      // Prepare the data for the API call
-      const response = await axios.put(`/api/update-team`, {
-        teamId,
-        teamName,
-        teamPhoto: teamImage?.startsWith('data:') ? { url: teamImage } : undefined,
-        teamMembers: teamMembers.map(member => ({
-          name: member.name,
-          ...(member._id.startsWith('temp_') ? {} : { _id: member._id }),
-          photo: member.photo.url?.startsWith('data:') ? 
-            { url: member.photo.url } : 
-            member.photo
-        })),
-        substitutePlayers: substitutePlayers.map(member => ({
-          name: member.name,
-          ...(member._id.startsWith('temp_') ? {} : { _id: member._id }),
-          photo: member.photo.url?.startsWith('data:') ? 
-            { url: member.photo.url } : 
-            member.photo
-        }))
+      const response = await fetch(`/api/update-team`, {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          teamId,
+          teamName,
+          teamPhoto: teamImage?.startsWith('data:') ? { url: teamImage } : undefined,
+          teamMembers: teamMembers.map(member => ({
+            name: member.name,
+            ...(member._id.startsWith('temp_') ? {} : { _id: member._id }),
+            photo: member.photo.url?.startsWith('data:') ? 
+              { url: member.photo.url } : 
+              member.photo
+          })),
+          substitutePlayers: substitutePlayers.map(member => ({
+            name: member.name,
+            ...(member._id.startsWith('temp_') ? {} : { _id: member._id }),
+            photo: member.photo.url?.startsWith('data:') ? 
+              { url: member.photo.url } : 
+              member.photo
+          }))
+        }),
       });
-  
-      if (response.data.success) {
-        // Refetch the team data to ensure we have the latest information
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update team');
+      }
+
+      if (data.success) {
         await fetchTeamData();
         
-        // Call the onTeamUpdated callback if provided
         if (onTeamUpdated) {
           onTeamUpdated();
         }
@@ -239,23 +257,19 @@ export function TeamEditor({ teamId, onTeamUpdated }: TeamEditorProps) {
           description: "Team information has been updated successfully.",
         });
       } else {
-        toast({
-          title: "Error",
-          description: response.data.message || "Failed to save team changes.",
-          variant: "destructive",
-        });
+        throw new Error(data.message || 'Failed to update team');
       }
     } catch (error) {
       console.error("Error saving team:", error);
       toast({
         title: "Error",
-        description: "Failed to save team changes.",
+        description: error instanceof Error ? error.message : "Failed to save team changes",
         variant: "destructive",
       });
     }
   };
 
-  // Rest of the component remains the same
+  
   if (loading) {
     return <div className="text-white">Loading team data...</div>;
   }
