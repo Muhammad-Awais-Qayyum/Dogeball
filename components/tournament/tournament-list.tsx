@@ -57,7 +57,7 @@ export function TournamentList() {
   const fetchTournaments = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/api/get-tournament", { headers: { "Cache-Control": "no-cache" } });      ;
+      const response = await axios.get("/api/get-tournament");
       if (response.data.success) {
         setTournaments(response.data.data);
       } else {
