@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from "next/server";
+
+
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import TeamModel from "@/app/models/Team";
@@ -286,7 +287,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       .populate('homeTeamId')
       .populate('awayTeamId');
 
-    return NextResponse.json({ 
+    return Response.json({ 
       success: true, 
       data: updatedMatch,
       allRoundsCompleted
@@ -300,7 +301,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
     await session.abortTransaction();
     session.endSession();
 
-    return NextResponse.json(
+    return Response.json(
       { success: false, message: "Error updating match score" },
       { 
         status: 500,
