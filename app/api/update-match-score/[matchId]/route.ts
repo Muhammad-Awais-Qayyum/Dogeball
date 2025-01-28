@@ -83,7 +83,7 @@ async function createBracketTeams(tournamentId: string, session: any) {
           status: MatchStatus.INCOMPLETE,
           isEliminated: false,
           score: 0,
-          nextMatchId: bracketSize > 2 ? undefined : 'R2M1' 
+          nextMatchId: bracketSize > 2 ? `R2M${Math.ceil((index + 1) / 2)}` : undefined
         };
 
         return (await BracketTeamModel.create([bracketTeam], { session }))[0];
@@ -120,7 +120,7 @@ async function createBracketTeams(tournamentId: string, session: any) {
           homeTeamId: homeTeam.originalTeamId,
           awayTeamId: awayTeam.originalTeamId,
           status: 'unscheduled',
-          nextMatchId: bracketSize > 2 ? `R2M${Math.ceil((i + 1) / 2)}` : undefined
+  
         });
       }
     }
