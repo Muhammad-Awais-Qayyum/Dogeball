@@ -82,7 +82,8 @@ async function createBracketTeams(tournamentId: string, session: any) {
           stage: initialStage,
           status: MatchStatus.INCOMPLETE,
           isEliminated: false,
-          score: 0
+          score: 0,
+          nextMatchId: bracketSize > 2 ? undefined : 'R2M1' 
         };
 
         return (await BracketTeamModel.create([bracketTeam], { session }))[0];
