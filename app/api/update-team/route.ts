@@ -1,4 +1,4 @@
-
+export const dynamic = 'force-dynamic';
 import dbConnect from "@/lib/dbConnect";
 import TeamModel from "@/app/models/Team";
 import { v2 as cloudinary } from "cloudinary";
