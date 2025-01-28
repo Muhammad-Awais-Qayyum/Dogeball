@@ -1,13 +1,12 @@
 export const dynamic = 'force-dynamic';
 
-
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import TeamModel from "@/app/models/Team";
 import TournamentModel from "@/app/models/Tournament";
 import BracketTeamModel from "@/app/models/BracketTeam";
 import Match from "@/app/models/Match";
-import { Document } from "mongoose";
+import { TournamentStage, MatchStatus } from "@/app/models/BracketTeam";
 
 interface ITeam {
   _id: string;
@@ -20,48 +19,20 @@ interface ITeam {
   pins: number;
 }
 
-interface ITournament extends Document {
-  _id: string;
-  numberOfRounds: number;
-  roundStatuses: boolean[];
-  name: string;
-  startDate: Date;
-  endDate: Date;
-}
-
-interface IMatch {
-  _id: string;
-  tournamentId: string;
-  round: number;
-  roundType: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  status: 'scheduled' | 'unscheduled' | 'completed';
-  scheduledDate?: Date;
-  scores?: {
-    homeScore: number;
-    awayScore: number;
-    homePins: number;
-    awayPins: number;
-  };
-}
-
 async function createBracketTeams(tournamentId: string, session: any) {
   try {
+    // Clear existing bracket data
     await BracketTeamModel.deleteMany({ tournamentId }).session(session);
     await Match.deleteMany({ 
       tournamentId,
       roundType: { $in: ['quarterFinal', 'semiFinal', 'final'] }
     }).session(session);
 
-    // Get all teams and rank them
+    // Retrieve and rank teams
     const teams = await TeamModel.find({ tournamentId })
       .session(session)
       .lean();
 
-    // Rank teams based on points and goal difference
     const rankedTeams = teams
       .map(team => ({
         ...team,
@@ -74,36 +45,32 @@ async function createBracketTeams(tournamentId: string, session: any) {
         return b.goalsFor - a.goalsFor;
       });
 
-    // Determine bracket size and stage based on number of teams
+    // Determine bracket configuration
     let bracketSize: number;
     let roundType: 'quarterFinal' | 'semiFinal' | 'final';
-    let initialStage: 'Quarter-finals' | 'Semi-finals' | 'Finals';
+    let initialStage: TournamentStage;
 
-    // Updated logic for different team numbers
     if (rankedTeams.length >= 8) {
       bracketSize = 8;
       roundType = 'quarterFinal';
-      initialStage = 'Quarter-finals';
+      initialStage = TournamentStage.QUARTER_FINALS;
     } else if (rankedTeams.length >= 4 && rankedTeams.length <= 7) {
       bracketSize = 4;
       roundType = 'semiFinal';
-      initialStage = 'Semi-finals';
+      initialStage = TournamentStage.SEMI_FINALS;
     } else if (rankedTeams.length >= 2 && rankedTeams.length <= 3) {
       bracketSize = 2;
       roundType = 'final';
-      initialStage = 'Finals';
+      initialStage = TournamentStage.FINALS;
     } else {
-      throw new Error('Not enough teams for a bracket');
+      throw new Error('Insufficient teams for tournament bracket');
     }
 
-    // Take only the top N teams based on bracket size
+    // Select top teams
     const topTeams = rankedTeams.slice(0, bracketSize);
     console.log(`Selected top ${bracketSize} teams for ${initialStage}`);
 
-    console.log(rankedTeams.length)
-    console.log(initialStage)
-
-    // Create bracket teams from selected top teams
+    // Create bracket teams
     const bracketTeams = await Promise.all(
       topTeams.map(async (team, index) => {
         const bracketTeam = {
@@ -111,9 +78,9 @@ async function createBracketTeams(tournamentId: string, session: any) {
           position: index + 1,
           originalTeamId: team._id,
           tournamentId: tournamentId,
-          round: 1,
+          round: bracketSize > 2 ? 1 : 3,
           stage: initialStage,
-          status: 'incomplete',
+          status: MatchStatus.INCOMPLETE,
           isEliminated: false,
           score: 0
         };
@@ -122,46 +89,46 @@ async function createBracketTeams(tournamentId: string, session: any) {
       })
     );
 
-    console.log(bracketTeams)
-
-    // Create matches based on bracket size
+    // Create matches
     const matches = [];
-    const numberOfMatches = bracketSize / 2;
-
-    for (let i = 0; i < numberOfMatches; i++) {
-      const homeTeam = bracketTeams[i];
-      const awayTeam = bracketTeams[bracketSize - 1 - i];
-
+    if (bracketSize === 2) {
+      // Direct final match for 2 teams
       matches.push({
         tournamentId,
-        round: 1,
-        roundType,
-        homeTeam: homeTeam.teamName,
-        awayTeam: awayTeam.teamName,
-        homeTeamId: homeTeam.originalTeamId,
-        awayTeamId: awayTeam.originalTeamId,
-        status: 'unscheduled',
-        nextMatchId: bracketSize > 2 ? `R2M${Math.ceil((i + 1) / 2)}` : undefined
+        round: 3,
+        roundType: 'final',
+        homeTeam: bracketTeams[0].teamName,
+        awayTeam: bracketTeams[1].teamName,
+        homeTeamId: bracketTeams[0].originalTeamId,
+        awayTeamId: bracketTeams[1].originalTeamId,
+        status: 'unscheduled'
       });
+    } else {
+      // Multi-team bracket match creation
+      const numberOfMatches = bracketSize / 2;
+      for (let i = 0; i < numberOfMatches; i++) {
+        const homeTeam = bracketTeams[i];
+        const awayTeam = bracketTeams[bracketSize - 1 - i];
+
+        matches.push({
+          tournamentId,
+          round: 1,
+          roundType,
+          homeTeam: homeTeam.teamName,
+          awayTeam: awayTeam.teamName,
+          homeTeamId: homeTeam.originalTeamId,
+          awayTeamId: awayTeam.originalTeamId,
+          status: 'unscheduled',
+          nextMatchId: bracketSize > 2 ? `R2M${Math.ceil((i + 1) / 2)}` : undefined
+        });
+      }
     }
 
     await Match.create(matches, { session });
     return bracketTeams;
   } catch (error) {
-    console.error('Error creating bracket teams and matches:', error);
+    console.error('Bracket creation error:', error);
     throw error;
-  }
-}
-function getRoundType(numberOfTeams: number): string {
-  switch (numberOfTeams) {
-    case 8:
-      return 'quarterFinal';
-    case 4:
-      return 'semiFinal';
-    case 2:
-      return 'final';
-    default:
-      return 'quarterFinal';
   }
 }
 
@@ -171,11 +138,10 @@ async function checkRoundCompletion(tournamentId: string, session: any) {
     throw new Error("Tournament not found");
   }
 
-  const totalRounds = tournament.numberOfRounds;
   const allMatches = await ScheduledMatch.find({ tournamentId }).session(session);
 
   const matchesByRound = new Map();
-  for (let round = 1; round <= totalRounds; round++) {
+  for (let round = 1; round <= tournament.numberOfRounds; round++) {
     const matchesInRound = allMatches.filter(m => m.round === round);
     const completedMatchesInRound = matchesInRound.filter(m => m.status === 'completed');
     
@@ -209,6 +175,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       throw new Error("Match not found");
     }
 
+    // Update match status and scores
     match.status = 'completed';
     match.scores = {
       homeScore,
@@ -218,7 +185,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
     };
     await match.save({ session });
 
-    // Update team statistics
+    // Update team statistics based on match outcome
     if (homeScore === awayScore) {
       await TeamModel.findByIdAndUpdate(
         match.homeTeamId,
@@ -299,6 +266,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       );
     }
 
+    // Check round and tournament progression
     const { allRoundsCompleted, tournament, matchesByRound } = 
       await checkRoundCompletion(match.tournamentId.toString(), session);
 
@@ -314,6 +282,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
     await session.commitTransaction();
     session.endSession();
 
+    // Fetch and return updated match details
     const updatedMatch = await ScheduledMatch.findById(params.matchId)
       .populate('homeTeamId')
       .populate('awayTeamId');
@@ -326,9 +295,10 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache'
-      }});
+      }
+    });
   } catch (error) {
-    console.error('Error updating match score:', error);
+    console.error('Match update error:', error);
     await session.abortTransaction();
     session.endSession();
 

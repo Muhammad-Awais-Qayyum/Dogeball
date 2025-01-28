@@ -20,7 +20,7 @@ export interface IBracketTeam extends Document {
   tournamentId: mongoose.Types.ObjectId;
   round: number;
   stage: TournamentStage;
-  status: MatchStatus;  // Added status field
+  status: MatchStatus;
   isEliminated: boolean;
   nextMatchId?: string;
   score: number;
@@ -70,10 +70,9 @@ const BracketTeamSchema: Schema = new Schema(
     stage: {
       type: String,
       enum: Object.values(TournamentStage),
-      default: TournamentStage.QUARTER_FINALS,
       required: true
     },
-    status: {  // Added status field
+    status: {
       type: String,
       enum: Object.values(MatchStatus),
       default: MatchStatus.INCOMPLETE,
@@ -132,20 +131,8 @@ const BracketTeamSchema: Schema = new Schema(
   }
 );
 
-// Updated middleware to handle stages and initial status
-BracketTeamSchema.pre('save', function(next) {
-  if (this.isNew) {
-    // Set initial status for new teams
-    this.status = MatchStatus.INCOMPLETE;
-  }
-
-  // Set stage based on round
-  if (this.round === 1) this.stage = TournamentStage.QUARTER_FINALS;
-  else if (this.round === 2) this.stage = TournamentStage.SEMI_FINALS;
-  else if (this.round === 3) this.stage = TournamentStage.FINALS;
-  
-  next();
-});
+// Remove the pre-save middleware that was previously overriding the stage
+// This allows the explicitly set stage to be stored as-is
 
 const BracketTeamModel = mongoose.models.BracketTeam || mongoose.model<IBracketTeam>('BracketTeam', BracketTeamSchema);
 
