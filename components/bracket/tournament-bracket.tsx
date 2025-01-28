@@ -4,12 +4,21 @@ import { useMemo, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
 
-const QUARTERFINAL_MATCHUPS = [
-  { matchId: "R1M1", home: 1, away: 8 },
-  { matchId: "R1M2", home: 4, away: 5 },
-  { matchId: "R1M3", home: 3, away: 6 },
-  { matchId: "R1M4", home: 2, away: 7 },
-];
+const BRACKET_MATCHUPS = {
+  QUARTERFINAL: [
+    { matchId: "R1M1", home: 1, away: 8 },
+    { matchId: "R1M2", home: 4, away: 5 },
+    { matchId: "R1M3", home: 3, away: 6 },
+    { matchId: "R1M4", home: 2, away: 7 },
+  ],
+  SEMIFINAL: [
+    { matchId: "R1M1", home: 1, away: 4 },
+    { matchId: "R1M2", home: 2, away: 3 },
+  ],
+  FINAL: [
+    { matchId: "R1M1", home: 1, away: 2 },
+  ]
+};
 
 export interface BracketTeam {
   _id: string;
@@ -74,17 +83,28 @@ const NoTeamsState = () => (
   </div>
 );
 
-function getRoundName(round: number): string {
-  switch (round) {
-    case 1:
-      return "Quarter-Finals";
-    case 2:
-      return "Semi-Finals";
-    case 3:
-      return "Final";
-    default:
-      return `Round ${round}`;
+function getBracketType(teamCount: number): 'QUARTERFINAL' | 'SEMIFINAL' | 'FINAL' {
+  if (teamCount >= 8) return 'QUARTERFINAL';
+  if (teamCount >= 4) return 'SEMIFINAL';
+  return 'FINAL';
+}
+
+function getRoundName(round: number, bracketType: 'QUARTERFINAL' | 'SEMIFINAL' | 'FINAL'): string {
+  if (bracketType === 'QUARTERFINAL') {
+    switch (round) {
+      case 1: return "Quarter-Finals";
+      case 2: return "Semi-Finals";
+      case 3: return "Final";
+    }
+  } else if (bracketType === 'SEMIFINAL') {
+    switch (round) {
+      case 1: return "Semi-Finals";
+      case 2: return "Final";
+    }
+  } else {
+    return "Final";
   }
+  return `Round ${round}`;
 }
 
 export function TournamentBracket({
@@ -94,28 +114,32 @@ export function TournamentBracket({
 }: TournamentBracketProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [bracketType, setBracketType] = useState<'QUARTERFINAL' | 'SEMIFINAL' | 'FINAL'>('QUARTERFINAL');
 
-  // Helper function to check if a round is completed
   const isRoundCompleted = (round: number, matches: Match[]): boolean => {
     const roundMatches = matches.filter(m => m.round === round);
     return roundMatches.every(m => m.isCompleted);
   };
 
-  // Helper function to determine match playability
   const determineMatchPlayability = (match: Match, allMatches: Match[]): boolean => {
     if (match.round === 1) return true;
     
     const previousRoundCompleted = isRoundCompleted(match.round - 1, allMatches);
     const currentRoundIncomplete = !isRoundCompleted(match.round, allMatches);
     
-    if (match.round === 2) {
-      return previousRoundCompleted && currentRoundIncomplete;
-    }
-    
-    if (match.round === 3) {
-      const quarterFinalsCompleted = isRoundCompleted(1, allMatches);
-      const semiFinalsCompleted = isRoundCompleted(2, allMatches);
-      return quarterFinalsCompleted && semiFinalsCompleted && currentRoundIncomplete;
+    if (bracketType === 'QUARTERFINAL') {
+      if (match.round === 2) {
+        return previousRoundCompleted && currentRoundIncomplete;
+      }
+      if (match.round === 3) {
+        return isRoundCompleted(1, allMatches) && 
+               isRoundCompleted(2, allMatches) && 
+               currentRoundIncomplete;
+      }
+    } else if (bracketType === 'SEMIFINAL') {
+      if (match.round === 2) {
+        return previousRoundCompleted && currentRoundIncomplete;
+      }
     }
     
     return false;
@@ -136,11 +160,14 @@ export function TournamentBracket({
             return;
           }
 
+          const type = getBracketType(bracketTeams.length);
+          setBracketType(type);
+
           const bracketMatches: Match[] = [];
           const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
 
-          // Create quarterfinal matches
-          QUARTERFINAL_MATCHUPS.forEach((matchup, i) => {
+          // Create first round matches
+          BRACKET_MATCHUPS[type].forEach((matchup, i) => {
             const homeTeam = sortedTeams.find(t => t.position === matchup.home);
             const awayTeam = sortedTeams.find(t => t.position === matchup.away);
 
@@ -181,13 +208,15 @@ export function TournamentBracket({
               winner,
               isPlayable: true,
               isCompleted,
-              nextMatchId: `R2M${Math.ceil((i + 1) / 2)}`
+              nextMatchId: type !== 'FINAL' ? `R2M${Math.ceil((i + 1) / 2)}` : undefined
             });
           });
 
-          // Create subsequent rounds (semifinals and finals)
-          for (let round = 2; round <= 3; round++) {
-            const matchesInRound = round === 2 ? 2 : 1;
+          // Create subsequent rounds
+          const maxRounds = type === 'QUARTERFINAL' ? 3 : type === 'SEMIFINAL' ? 2 : 1;
+
+          for (let round = 2; round <= maxRounds; round++) {
+            const matchesInRound = type === 'QUARTERFINAL' && round === 2 ? 2 : 1;
             
             for (let i = 0; i < matchesInRound; i++) {
               const matchId = `R${round}M${i + 1}`;
@@ -237,7 +266,7 @@ export function TournamentBracket({
                 winner,
                 isPlayable: false,
                 isCompleted,
-                nextMatchId: round < 3 ? `R${round + 1}M1` : undefined
+                nextMatchId: round < maxRounds ? `R${round + 1}M1` : undefined
               });
             }
           }
@@ -268,10 +297,10 @@ export function TournamentBracket({
     }, {} as Record<number, Match[]>);
 
     return Object.entries(roundsMap).map(([round, matches]) => ({
-      name: getRoundName(parseInt(round)),
+      name: getRoundName(parseInt(round), bracketType),
       matches: matches.sort((a, b) => a.position - b.position),
     }));
-  }, [matches]);
+  }, [matches, bracketType]);
 
   if (error) {
     return <NoTeamsState />;

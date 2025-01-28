@@ -56,10 +56,12 @@ async function createBracketTeams(tournamentId: string, session: any) {
       roundType: { $in: ['quarterFinal', 'semiFinal', 'final'] }
     }).session(session);
 
+    // Get all teams and rank them
     const teams = await TeamModel.find({ tournamentId })
       .session(session)
       .lean();
 
+    // Rank teams based on points and goal difference
     const rankedTeams = teams
       .map(team => ({
         ...team,
@@ -72,34 +74,63 @@ async function createBracketTeams(tournamentId: string, session: any) {
         return b.goalsFor - a.goalsFor;
       });
 
-    let numberOfTeamsForBracket = rankedTeams.length;
-    if (numberOfTeamsForBracket % 2 !== 0) {
-      numberOfTeamsForBracket--;
-    }
-    if (numberOfTeamsForBracket > 8) {
-      numberOfTeamsForBracket = 8;
+    // Determine bracket size and stage based on number of teams
+    let bracketSize;
+    let roundType;
+    let initialStage;
+
+    // Updated logic for different team numbers
+    if (rankedTeams.length >= 8) {
+      bracketSize = 8;
+      roundType = 'quarterFinal';
+      initialStage = 'Quarter-finals';
+    } else if (rankedTeams.length >= 4 && rankedTeams.length <= 7) {
+      bracketSize = 4;
+      roundType = 'semiFinal';
+      initialStage = 'Semi-finals';
+    } else if (rankedTeams.length >= 2 && rankedTeams.length <= 3) {
+      bracketSize = 2;
+      roundType = 'final';
+      initialStage = 'Final';
+    } else {
+      throw new Error('Not enough teams for a bracket');
     }
 
-    const topTeams = rankedTeams.slice(0, numberOfTeamsForBracket);
+    // Take only the top N teams based on bracket size
+    const topTeams = rankedTeams.slice(0, bracketSize);
+    console.log(`Selected top ${bracketSize} teams for ${initialStage}`);
 
+    console.log(rankedTeams.length)
+    console.log(initialStage)
+
+    // Create bracket teams from selected top teams
     const bracketTeams = await Promise.all(
       topTeams.map(async (team, index) => {
-        return (await BracketTeamModel.create([{
+        const bracketTeam = {
           teamName: team.teamName,
           position: index + 1,
           originalTeamId: team._id,
-          tournamentId: tournamentId
-        }], { session }))[0];
+          tournamentId: tournamentId,
+          round: 1,
+          stage: initialStage,
+          status: 'incomplete',
+          isEliminated: false,
+          score: 0
+        };
+
+        return (await BracketTeamModel.create([bracketTeam], { session }))[0];
       })
     );
 
+    console.log(bracketTeams)
+
+    // Create matches based on bracket size
     const matches = [];
-    const roundType = getRoundType(numberOfTeamsForBracket);
-    const numberOfMatches = numberOfTeamsForBracket / 2;
+    const numberOfMatches = bracketSize / 2;
 
     for (let i = 0; i < numberOfMatches; i++) {
       const homeTeam = bracketTeams[i];
-      const awayTeam = bracketTeams[numberOfTeamsForBracket - 1 - i];
+      const awayTeam = bracketTeams[bracketSize - 1 - i];
 
       matches.push({
         tournamentId,
@@ -109,7 +140,8 @@ async function createBracketTeams(tournamentId: string, session: any) {
         awayTeam: awayTeam.teamName,
         homeTeamId: homeTeam.originalTeamId,
         awayTeamId: awayTeam.originalTeamId,
-        status: 'unscheduled'
+        status: 'unscheduled',
+        nextMatchId: bracketSize > 2 ? `R2M${Math.ceil((i + 1) / 2)}` : undefined
       });
     }
 
@@ -120,7 +152,6 @@ async function createBracketTeams(tournamentId: string, session: any) {
     throw error;
   }
 }
-
 function getRoundType(numberOfTeams: number): string {
   switch (numberOfTeams) {
     case 8:
