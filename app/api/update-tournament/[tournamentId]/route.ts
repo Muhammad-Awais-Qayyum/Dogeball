@@ -1,5 +1,5 @@
-export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';;
+
+import { NextResponse } from 'next/server';
 import TournamentModel from '@/app/models/Tournament';
 import { isValidObjectId } from 'mongoose';
 import dbConnect from '@/lib/dbConnect';

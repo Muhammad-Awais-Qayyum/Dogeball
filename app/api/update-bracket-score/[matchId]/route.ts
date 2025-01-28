@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';

@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import TournamentModel from "@/app/models/Tournament";

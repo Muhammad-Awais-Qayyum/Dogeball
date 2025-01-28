@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic';
-
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import BracketTeamModel, { IBracketTeam } from "@/app/models/BracketTeam";
