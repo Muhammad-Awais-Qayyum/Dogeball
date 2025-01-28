@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import MatchModel from "@/app/models/Match";
 import dbConnect from "@/lib/dbConnect";
@@ -12,7 +12,7 @@ export async function DELETE(req: Request) {
   const { id } = await req.json();
 
   if (!id) {
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Tournament ID is required.",
@@ -33,7 +33,7 @@ export async function DELETE(req: Request) {
     const deletedTournament = await TournamentModel.findByIdAndDelete(id);
 
     if (!deletedTournament) {
-      return NextResponse.json(
+      return Response.json(
         {
           success: false,
           message: "Tournament not found.",
@@ -68,7 +68,7 @@ export async function DELETE(req: Request) {
       tournamentId: id,
     });
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
         message: "Tournament deleted successfully.",
@@ -87,7 +87,7 @@ export async function DELETE(req: Request) {
   } catch (error) {
     console.error("Error deleting tournament:", error);
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Error deleting tournament. Please try again.",

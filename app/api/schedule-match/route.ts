@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import Match from "@/app/models/Match";
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
         } = await req.json();
 
         if (!matchId || !homeTeamId || !awayTeamId || !tournamentId || !scheduledDate || !round) {
-            return NextResponse.json(
+            return Response.json(
                 {
                     success: false,
                     message: "All fields are required"
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
         // Validate matchType if provided
         if (matchType && !['quarterfinal', 'semifinal', 'final'].includes(matchType)) {
-            return NextResponse.json(
+            return Response.json(
                 {
                     success: false,
                     message: "Invalid match type"
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
         );
 
         if (!originalMatch) {
-            return NextResponse.json(
+            return Response.json(
                 {
                     success: false,
                     message: "Match not found"
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
         const populatedMatch = await scheduledMatch.populate(['homeTeamId', 'awayTeamId']);
 
-        return NextResponse.json(
+        return Response.json(
             {
                 success: true,
                 message: "Match scheduled successfully",
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
 
     } catch (error) {
         console.error('Error scheduling match:', error);
-        return NextResponse.json(
+        return Response.json(
             {
                 success: false,
                 message: "Error scheduling match"

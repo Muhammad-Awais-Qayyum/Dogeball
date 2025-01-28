@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import TournamentModel from "@/app/models/Tournament";
 
@@ -13,7 +12,7 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .lean();
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
         message: "Tournaments fetched successfully",
@@ -37,7 +36,7 @@ export async function GET() {
     }
 
     if (error instanceof Error && error.name === "MongooseError") {
-      return NextResponse.json(
+      return Response.json(
         {
           success: false,
           message: "Database connection error. Please try again later.",
@@ -52,7 +51,7 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Error fetching tournaments. Please try again.",

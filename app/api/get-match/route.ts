@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from "next/server";
+
 import MatchModel from "@/app/models/Match";
 import { Document, ObjectId } from "mongoose";
 
@@ -17,7 +17,7 @@ interface Match extends Document {
     updatedAt: Date;
 }
 
-export async function GET(req: NextRequest): Promise<NextResponse> {
+export async function GET(req:Request): Promise<Response> {
     try {
         const matches: Match[] = await MatchModel.find({ 
             status: "unscheduled" 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         .exec();
 
         if (!matches || matches.length === 0) {
-            return NextResponse.json(
+            return Response.json(
                 { message: "No unscheduled matches found." }, 
                 { 
                     status: 404,
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             );
         }
 
-        return NextResponse.json(
+        return Response.json(
             matches, 
             { 
                 status: 200,
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         );
     } catch (error) {
         console.error("Error fetching matches:", error);
-        return NextResponse.json(
+        return Response.json(
             { error: "Error fetching matches" },
             { 
                 status: 500,

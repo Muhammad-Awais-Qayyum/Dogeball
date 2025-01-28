@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+
 import TournamentModel from '@/app/models/Tournament';
 import { isValidObjectId } from 'mongoose';
 import dbConnect from '@/lib/dbConnect';
@@ -14,7 +14,7 @@ export async function PUT(
 
     // Validate MongoDB ObjectId
     if (!isValidObjectId(tournamentId)) {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: 'Invalid tournament ID format'
       }, { status: 400 });
@@ -26,7 +26,7 @@ export async function PUT(
     const tournament = await TournamentModel.findById(tournamentId);
 
     if (!tournament) {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: 'Tournament not found'
       }, { status: 404 });
@@ -34,7 +34,7 @@ export async function PUT(
 
     // Validate status value
     if (status !== 'completed' && status !== 'in progress') {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: 'Invalid status value'
       }, { status: 400 });
@@ -50,7 +50,7 @@ export async function PUT(
       { new: true } // Return updated document
     );
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       data: updatedTournament
     }, {
@@ -62,7 +62,7 @@ export async function PUT(
 
   } catch (error) {
     console.error('Error updating tournament:', error);
-    return NextResponse.json({
+    return Response.json({
       success: false,
       message: 'Failed to update tournament'
     }, { 

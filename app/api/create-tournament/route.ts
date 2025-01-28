@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import dbConnect from "@/lib/dbConnect";
 import TournamentModel from "@/app/models/Tournament";
 import TeamModel from "@/app/models/Team";
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
 
     const createdMatches = await MatchModel.insertMany(matches);
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
         data: {
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error creating tournament data:", error);
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Error creating tournament data",

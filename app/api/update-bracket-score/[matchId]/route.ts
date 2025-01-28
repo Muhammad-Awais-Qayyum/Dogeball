@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+
 import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';
 import Match from '@/app/models/Match';
@@ -164,7 +164,7 @@ export async function PUT(
     const awayTeam = bracketTeams.find(team => team.originalTeamId.toString() === awayTeamData.id);
 
     if (!homeTeam || !awayTeam) {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: 'One or both teams not found'
       }, { status: 404 });
@@ -319,7 +319,7 @@ export async function PUT(
 
       await session.commitTransaction();
 
-      return NextResponse.json({
+      return Response.json({
         success: true,
         data: {
           winner: {
@@ -363,7 +363,7 @@ export async function PUT(
     }
   } catch (error) {
     console.error('Error updating match:', error);
-    return NextResponse.json({
+    return Response.json({
       success: false,
       message: 'Failed to update match'
     },{ 

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import dbConnect from "@/lib/dbConnect";
 import TeamModel from "@/app/models/Team";
 import { v2 as cloudinary } from "cloudinary";
@@ -20,7 +20,7 @@ export async function DELETE(req: Request) {
         const { teamId } = body;
   
         if (!teamId) {
-            return NextResponse.json(
+            return Response.json(
                 { success: false, message: "Team ID is required" },
                 { 
                     status: 400,
@@ -34,7 +34,7 @@ export async function DELETE(req: Request) {
   
         const team = await TeamModel.findById(teamId);
         if (!team) {
-            return NextResponse.json(
+            return Response.json(
                 { success: false, message: "Team not found" },
                 { 
                     status: 404,
@@ -73,7 +73,7 @@ export async function DELETE(req: Request) {
   
         await TeamModel.findByIdAndDelete(teamId);
   
-        return NextResponse.json(
+        return Response.json(
             {
                 success: true,
                 message: "Team deleted successfully"
@@ -88,7 +88,7 @@ export async function DELETE(req: Request) {
   
     } catch (error) {
         console.error("Error deleting team:", error);
-        return NextResponse.json(
+        return Response.json(
             { 
                 success: false, 
                 message: error instanceof Error ? error.message : "Error deleting team" 

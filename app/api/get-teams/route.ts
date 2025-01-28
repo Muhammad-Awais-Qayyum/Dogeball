@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
 import dbConnect from "@/lib/dbConnect";
 import TeamModel from "@/app/models/Team";
 
@@ -18,7 +17,7 @@ export async function POST(request: Request) {
         .lean();
 
       if (!team) {
-        return NextResponse.json(
+        return Response.json(
           {
             success: false,
             message: "Team not found",
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return NextResponse.json(
+      return Response.json(
         {
           success: true,
           message: "Team fetched successfully",
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
         .sort({ createdAt: -1 })
         .lean();
 
-      return NextResponse.json(
+      return Response.json(
         {
           success: true,
           message: "Teams fetched successfully",
@@ -73,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     // If neither teamId nor tournamentId is provided
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Either Team ID or Tournament ID is required",
@@ -95,7 +94,7 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof Error && error.name === "MongooseError") {
-      return NextResponse.json(
+      return Response.json(
         {
           success: false,
           message: "Database connection error. Please try again later.",
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Error fetching team(s). Please try again.",

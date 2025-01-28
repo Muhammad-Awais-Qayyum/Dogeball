@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import TeamModel from "@/app/models/Team";
@@ -22,7 +22,7 @@ export async function GET() {
       })
       .sort('scheduledDate');
 
-    return NextResponse.json(
+    return Response.json(
       {
         success: true,
         data: matches
@@ -36,7 +36,7 @@ export async function GET() {
     );
   } catch (error) {
     console.error('Error fetching matches:', error);
-    return NextResponse.json(
+    return Response.json(
       {
         success: false,
         message: "Error fetching matches"

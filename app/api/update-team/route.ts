@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import dbConnect from "@/lib/dbConnect";
 import TeamModel from "@/app/models/Team";
 import { v2 as cloudinary } from "cloudinary";
-import { NextResponse } from "next/server";
+
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -151,7 +151,7 @@ export async function PUT(req: Request) {
       { new: true }
     );
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       message: "Team updated successfully",
       data: updatedTeam,
@@ -166,7 +166,7 @@ export async function PUT(req: Request) {
 
   } catch (error) {
     console.error("Error updating team:", error);
-    return NextResponse.json({ 
+    return Response.json({ 
       success: false, 
       message: error instanceof Error ? error.message : "Error updating team" 
     }, { 

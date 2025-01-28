@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
+
 import dbConnect from "@/lib/dbConnect";
-import BracketTeamModel, { IBracketTeam } from "@/app/models/BracketTeam";
-import TeamModel from "@/app/models/Team";
+import BracketTeamModel from "@/app/models/BracketTeam";
 import { Types } from "mongoose";
 
-// Your existing interfaces...
+
 interface PopulatedTeam {
   _id: Types.ObjectId;
   teamName: string;
@@ -79,7 +78,7 @@ export async function GET(request: Request) {
     const tournamentId = searchParams.get('tournamentId');
 
     if (!tournamentId) {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: "Tournament ID is required"
       }, { 
@@ -133,7 +132,7 @@ export async function GET(request: Request) {
       }
     }));
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       data: formattedTeams
     }, {
@@ -150,7 +149,7 @@ export async function GET(request: Request) {
       console.error(error.stack);
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: false,
       message: "Error fetching bracket teams"
     }, { 
