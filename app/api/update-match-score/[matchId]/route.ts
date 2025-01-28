@@ -75,9 +75,9 @@ async function createBracketTeams(tournamentId: string, session: any) {
       });
 
     // Determine bracket size and stage based on number of teams
-    let bracketSize;
-    let roundType;
-    let initialStage;
+    let bracketSize: number;
+    let roundType: 'quarterFinal' | 'semiFinal' | 'final';
+    let initialStage: 'Quarter-finals' | 'Semi-finals' | 'Final';
 
     // Updated logic for different team numbers
     if (rankedTeams.length >= 8) {
