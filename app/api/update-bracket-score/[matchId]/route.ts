@@ -31,7 +31,6 @@ interface WinnerUpdate {
   nextMatchId?: string | null;
 }
 
-// Get initial stage based on team count
 async function getInitialStage(tournamentId: mongoose.Types.ObjectId, session: mongoose.ClientSession) {
   const bracketTeams = await BracketTeamModel.find({ tournamentId }).session(session);
   const teamCount = bracketTeams.length;
@@ -58,7 +57,7 @@ async function handleSemiFinalsSetup(tournamentId: mongoose.Types.ObjectId, sess
     if (existingSemis.length === 0) {
       const semifinal = {
         tournamentId,
-        round: 1, // For 4-team tournament, this is the first round
+        round: 1,
         roundType: 'semiFinal',
         homeTeam: semiFinalTeams[0].teamName,
         awayTeam: semiFinalTeams[1].teamName,
@@ -107,11 +106,11 @@ async function getNextRound(tournamentId: mongoose.Types.ObjectId, session: mong
   const initialStage = await getInitialStage(tournamentId, session);
   switch (initialStage) {
     case TournamentStage.QUARTER_FINALS:
-      return 3; // Final is round 3
+      return 3;
     case TournamentStage.SEMI_FINALS:
-      return 2; // Final is round 2
+      return 2;
     case TournamentStage.FINALS:
-      return 1; // Only round is 1
+      return 1;
     default:
       return 1;
   }
