@@ -31,32 +31,35 @@ interface WinnerUpdate {
   nextMatchId?: string | null;
 }
 
-async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.ObjectId, session: mongoose.ClientSession) {
+async function handleQuarterFinalsCompletion(
+  tournamentId: mongoose.Types.ObjectId,
+  totalTeams: number
+) {
+  if (totalTeams <= 4) return;
+
   const quarterFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.QUARTER_FINALS
-  }).session(session);
+  });
 
   const allQuarterFinalsCompleted = quarterFinalTeams.every(team => 
     team.status === 'completed'
   );
 
-  if (!allQuarterFinalsCompleted) {
-    return;
-  }
+  if (!allQuarterFinalsCompleted) return;
 
   const semiFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.SEMI_FINALS,
     isEliminated: false,
     status: 'incomplete'
-  }).sort({ position: 1 }).session(session);
+  }).sort({ position: 1 });
 
   if (semiFinalTeams.length === 4) {
     const existingSemiFinals = await Match.find({
       tournamentId,
       roundType: 'semiFinal'
-    }).session(session);
+    });
 
     if (existingSemiFinals.length === 0) {
       const r2m1Teams = semiFinalTeams.filter(team => team.nextMatchId === 'R2M1');
@@ -86,41 +89,44 @@ async function handleQuarterFinalsCompletion(tournamentId: mongoose.Types.Object
           }
         ];
 
-        await Match.insertMany(semifinals, { session });
+        await Match.insertMany(semifinals);
       }
     }
   }
 }
 
-async function handleSemiFinalsCompletion(tournamentId: mongoose.Types.ObjectId, session: mongoose.ClientSession) {
+async function handleSemiFinalsCompletion(
+  tournamentId: mongoose.Types.ObjectId,
+  totalTeams: number
+) {
+  if (totalTeams <= 2) return;
+
   const semiFinalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.SEMI_FINALS
-  }).session(session);
+  });
 
   const allSemiFinalsCompleted = semiFinalTeams.every(team => 
     team.status === 'completed'
   );
 
-  if (!allSemiFinalsCompleted) {
-    return;
-  }
+  if (!allSemiFinalsCompleted) return;
 
   const finalTeams = await BracketTeamModel.find({
     tournamentId,
     stage: TournamentStage.FINALS,
     isEliminated: false,
     status: 'incomplete'
-  }).sort({ position: 1 }).session(session);
+  }).sort({ position: 1 });
 
   if (finalTeams.length === 2) {
     const existingFinal = await Match.findOne({
       tournamentId,
       roundType: 'final'
-    }).session(session);
+    });
 
     if (!existingFinal) {
-      const finalMatch = {
+      await Match.create({
         tournamentId,
         round: 3,
         roundType: 'final',
@@ -129,9 +135,7 @@ async function handleSemiFinalsCompletion(tournamentId: mongoose.Types.ObjectId,
         homeTeamId: finalTeams[0].originalTeamId,
         awayTeamId: finalTeams[1].originalTeamId,
         status: 'unscheduled'
-      };
-
-      await Match.create([finalMatch], { session });
+      });
     }
   }
 }
@@ -170,31 +174,32 @@ export async function PUT(
       }, { status: 404 });
     }
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
+      const totalTeams = await BracketTeamModel.countDocuments({
+        tournamentId: homeTeam.tournamentId
+      });
+
       const scheduledMatch = await ScheduledMatch.findOne({
         $and: [
           { homeTeamId: new mongoose.Types.ObjectId(homeTeamData.id) },
           { awayTeamId: new mongoose.Types.ObjectId(awayTeamData.id) },
           { status: "scheduled" }
         ]
-      }).session(session);
+      });
 
       if (scheduledMatch) {
         await ScheduledMatch.findByIdAndUpdate(
           scheduledMatch._id,
-          { status: "completed" },
-          { session }
+          { status: "completed" }
         );
       }
 
       const isHomeWinner = homeScore > awayScore;
       const winner = isHomeWinner ? homeTeam : awayTeam;
       const loser = isHomeWinner ? awayTeam : homeTeam;
-      const currentStage = getStageFromRound(winner.round);
+      const currentStage = getStageFromRound(winner.round, totalTeams);
 
+      // Update home team
       await BracketTeamModel.findByIdAndUpdate(
         homeTeam._id,
         {
@@ -211,10 +216,10 @@ export async function PUT(
               won: isHomeWinner
             }
           }
-        },
-        { session }
+        }
       );
 
+      // Update away team
       await BracketTeamModel.findByIdAndUpdate(
         awayTeam._id,
         {
@@ -231,10 +236,10 @@ export async function PUT(
               won: !isHomeWinner
             }
           }
-        },
-        { session }
+        }
       );
 
+      // Update team statistics
       await TeamModel.findByIdAndUpdate(
         homeTeamData.id,
         {
@@ -245,8 +250,7 @@ export async function PUT(
             wins: isHomeWinner ? 1 : 0,
             losses: isHomeWinner ? 0 : 1,
           }
-        },
-        { session }
+        }
       );
 
       await TeamModel.findByIdAndUpdate(
@@ -259,29 +263,41 @@ export async function PUT(
             wins: isHomeWinner ? 0 : 1,
             losses: isHomeWinner ? 1 : 0,
           }
-        },
-        { session }
+        }
       );
 
+      // Update loser status
       await BracketTeamModel.findByIdAndUpdate(
         loser._id,
         {
           isEliminated: true,
           status: 'completed'
-        },
-        { session }
+        }
       );
 
-      const nextRound = winner.round + 1;
-      let nextStage = TournamentStage.FINALS;
+      let nextRound = winner.round;
+      let nextStage = currentStage;
       let nextMatchId = null;
 
-      if (currentStage === TournamentStage.QUARTER_FINALS) {
-        nextStage = TournamentStage.SEMI_FINALS;
-        nextMatchId = calculateNextMatchId(winner.position, 2);
-      } else if (currentStage === TournamentStage.SEMI_FINALS) {
+      if (totalTeams <= 2) {
         nextStage = TournamentStage.FINALS;
-        nextMatchId = 'R3M1';
+        nextRound = 3;
+      } else if (totalTeams <= 4) {
+        if (currentStage === TournamentStage.SEMI_FINALS) {
+          nextStage = TournamentStage.FINALS;
+          nextRound = winner.round + 1;
+          nextMatchId = 'R3M1';
+        }
+      } else {
+        if (currentStage === TournamentStage.QUARTER_FINALS) {
+          nextStage = TournamentStage.SEMI_FINALS;
+          nextRound = winner.round + 1;
+          nextMatchId = calculateNextMatchId(winner.position, nextRound, totalTeams);
+        } else if (currentStage === TournamentStage.SEMI_FINALS) {
+          nextStage = TournamentStage.FINALS;
+          nextRound = winner.round + 1;
+          nextMatchId = 'R3M1';
+        }
       }
 
       const winnerUpdate: WinnerUpdate = currentStage === TournamentStage.FINALS
@@ -299,25 +315,17 @@ export async function PUT(
           nextMatchId: nextMatchId
         };
 
-      await BracketTeamModel.findByIdAndUpdate(
-        winner._id,
-        winnerUpdate,
-        { session }
-      );
+      await BracketTeamModel.findByIdAndUpdate(winner._id, winnerUpdate);
 
-      if (currentStage === TournamentStage.QUARTER_FINALS) {
-        await handleQuarterFinalsCompletion(winner.tournamentId, session);
-      } else if (currentStage === TournamentStage.SEMI_FINALS) {
-        await handleSemiFinalsCompletion(winner.tournamentId, session);
-      } else if (currentStage === TournamentStage.FINALS) {
-        await Tournament.findByIdAndUpdate(
-          winner.tournamentId,
-          { progress: "Completed" },
-          { session }
-        );
+      if (totalTeams > 4 && currentStage === TournamentStage.QUARTER_FINALS) {
+        await handleQuarterFinalsCompletion(winner.tournamentId, totalTeams);
       }
-
-      await session.commitTransaction();
+      if (totalTeams > 2 && currentStage === TournamentStage.SEMI_FINALS) {
+        await handleSemiFinalsCompletion(winner.tournamentId, totalTeams);
+      }
+      if (currentStage === TournamentStage.FINALS) {
+        await Tournament.findByIdAndUpdate(winner.tournamentId, { progress: "Completed" });
+      }
 
       return Response.json({
         success: true,
@@ -325,8 +333,8 @@ export async function PUT(
           winner: {
             id: winner._id,
             teamName: winner.teamName,
-            round: currentStage === TournamentStage.FINALS ? winner.round : nextRound,
-            stage: currentStage === TournamentStage.FINALS ? currentStage : nextStage,
+            round: nextRound,
+            stage: nextStage,
             position: winner.position,
             nextMatchId: nextMatchId,
             matchStats: {
@@ -353,29 +361,30 @@ export async function PUT(
           'Cache-Control': 'no-store, no-cache, must-revalidate',
           'Pragma': 'no-cache'
         }
-      }
-    );
+      });
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   } catch (error) {
     console.error('Error updating match:', error);
     return Response.json({
       success: false,
       message: 'Failed to update match'
-    },{ 
+    }, { 
       status: 500,
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache'
-      }});
+      }
+    });
   }
 }
 
-function getStageFromRound(round: number): TournamentStage {
+function getStageFromRound(round: number, totalTeams: number): TournamentStage {
+  if (totalTeams <= 2) return TournamentStage.FINALS;
+  if (totalTeams <= 4) {
+    return round === 2 ? TournamentStage.FINALS : TournamentStage.SEMI_FINALS;
+  }
   switch (round) {
     case 1:
       return TournamentStage.QUARTER_FINALS;
@@ -388,7 +397,12 @@ function getStageFromRound(round: number): TournamentStage {
   }
 }
 
-function calculateNextMatchId(position: number, nextRound: number): string | null {
+function calculateNextMatchId(position: number, nextRound: number, totalTeams: number): string | null {
+  if (totalTeams <= 2) return null;
+  if (totalTeams <= 4) {
+    return nextRound === 2 ? 'R2M1' : null;
+  }
+
   if (nextRound === 2) {
     if (position === 1 || position === 8 || position === 4 || position === 5) {
       return 'R2M1';

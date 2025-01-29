@@ -1,15 +1,25 @@
+// File 1: tournament-bracket.tsx
 "use client";
 
 import { useMemo, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
 
-const QUARTERFINAL_MATCHUPS = [
-  { matchId: "R1M1", home: 1, away: 8 },
-  { matchId: "R1M2", home: 4, away: 5 },
-  { matchId: "R1M3", home: 3, away: 6 },
-  { matchId: "R1M4", home: 2, away: 7 },
-];
+const MATCHUP_CONFIGS = {
+  FINALS: [
+    { matchId: "R3M1", home: 1, away: 2 }
+  ],
+  SEMIFINALS: [
+    { matchId: "R2M1", home: 1, away: 4 },
+    { matchId: "R2M2", home: 2, away: 3 }
+  ],
+  QUARTERFINALS: [
+    { matchId: "R1M1", home: 1, away: 8 },
+    { matchId: "R1M2", home: 4, away: 5 },
+    { matchId: "R1M3", home: 3, away: 6 },
+    { matchId: "R1M4", home: 2, away: 7 }
+  ]
+};
 
 export interface BracketTeam {
   _id: string;
@@ -74,7 +84,11 @@ const NoTeamsState = () => (
   </div>
 );
 
-function getRoundName(round: number): string {
+function getRoundName(round: number, totalTeams: number): string {
+  if (totalTeams <= 2) return "Final";
+  if (totalTeams <= 4) {
+    return round === 2 ? "Final" : "Semi-Finals";
+  }
   switch (round) {
     case 1:
       return "Quarter-Finals";
@@ -94,30 +108,29 @@ export function TournamentBracket({
 }: TournamentBracketProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [totalTeams, setTotalTeams] = useState<number>(0);
 
-  // Helper function to check if a round is completed
   const isRoundCompleted = (round: number, matches: Match[]): boolean => {
     const roundMatches = matches.filter(m => m.round === round);
     return roundMatches.every(m => m.isCompleted);
   };
 
-  // Helper function to determine match playability
   const determineMatchPlayability = (match: Match, allMatches: Match[]): boolean => {
+    if (totalTeams <= 2) return !match.isCompleted;
+    if (totalTeams <= 4) {
+      if (match.round === 2) return true;
+      return isRoundCompleted(1, allMatches) && !match.isCompleted;
+    }
+    
     if (match.round === 1) return true;
-    
-    const previousRoundCompleted = isRoundCompleted(match.round - 1, allMatches);
-    const currentRoundIncomplete = !isRoundCompleted(match.round, allMatches);
-    
     if (match.round === 2) {
-      return previousRoundCompleted && currentRoundIncomplete;
+      return isRoundCompleted(1, allMatches) && !match.isCompleted;
     }
-    
     if (match.round === 3) {
-      const quarterFinalsCompleted = isRoundCompleted(1, allMatches);
-      const semiFinalsCompleted = isRoundCompleted(2, allMatches);
-      return quarterFinalsCompleted && semiFinalsCompleted && currentRoundIncomplete;
+      return isRoundCompleted(1, allMatches) && 
+             isRoundCompleted(2, allMatches) && 
+             !match.isCompleted;
     }
-    
     return false;
   };
 
@@ -136,16 +149,32 @@ export function TournamentBracket({
             return;
           }
 
+          setTotalTeams(bracketTeams.length);
+
           const bracketMatches: Match[] = [];
           const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
 
-          // Create quarterfinal matches
-          QUARTERFINAL_MATCHUPS.forEach((matchup, i) => {
+          let matchupConfig;
+          let initialRound;
+
+          if (bracketTeams.length <= 2) {
+            matchupConfig = MATCHUP_CONFIGS.FINALS;
+            initialRound = 3;
+          } else if (bracketTeams.length <= 4) {
+            matchupConfig = MATCHUP_CONFIGS.SEMIFINALS;
+            initialRound = 2;
+          } else {
+            matchupConfig = MATCHUP_CONFIGS.QUARTERFINALS;
+            initialRound = 1;
+          }
+
+          // Create initial round matches
+          matchupConfig.forEach((matchup, i) => {
             const homeTeam = sortedTeams.find(t => t.position === matchup.home);
             const awayTeam = sortedTeams.find(t => t.position === matchup.away);
 
-            const homeMatchHistory = homeTeam?.matchHistory.find(m => m.round === 1);
-            const awayMatchHistory = awayTeam?.matchHistory.find(m => m.round === 1);
+            const homeMatchHistory = homeTeam?.matchHistory.find(m => m.round === initialRound);
+            const awayMatchHistory = awayTeam?.matchHistory.find(m => m.round === initialRound);
 
             const isCompleted = Boolean(homeMatchHistory || awayMatchHistory);
             let winner: "home" | "away" | undefined;
@@ -164,7 +193,7 @@ export function TournamentBracket({
 
             bracketMatches.push({
               id: matchup.matchId,
-              round: 1,
+              round: initialRound,
               position: i + 1,
               homeTeam: homeTeam ? {
                 id: homeTeam.originalTeamId,
@@ -181,64 +210,67 @@ export function TournamentBracket({
               winner,
               isPlayable: true,
               isCompleted,
-              nextMatchId: `R2M${Math.ceil((i + 1) / 2)}`
+              nextMatchId: initialRound < 3 ? `R${initialRound + 1}M${Math.ceil((i + 1) / 2)}` : undefined
             });
           });
 
-          // Create subsequent rounds (semifinals and finals)
-          for (let round = 2; round <= 3; round++) {
-            const matchesInRound = round === 2 ? 2 : 1;
-            
-            for (let i = 0; i < matchesInRound; i++) {
-              const matchId = `R${round}M${i + 1}`;
-              const previousRoundMatches = bracketMatches.filter(m => 
-                m.round === round - 1 && 
-                m.nextMatchId === matchId
-              );
+          // Create subsequent rounds if needed
+          if (bracketTeams.length > 2) {
+            const finalRound = bracketTeams.length <= 4 ? 2 : 3;
+            for (let round = initialRound + 1; round <= finalRound; round++) {
+              const matchesInRound = round === finalRound ? 1 : 2;
+              
+              for (let i = 0; i < matchesInRound; i++) {
+                const matchId = `R${round}M${i + 1}`;
+                const previousRoundMatches = bracketMatches.filter(m => 
+                  m.round === round - 1 && 
+                  m.nextMatchId === matchId
+                );
 
-              const teamsInThisMatch = previousRoundMatches.map(match => {
-                if (!match.winner) return null;
-                const team = match.winner === 'home' ? match.homeTeam : match.awayTeam;
-                if (!team) return null;
-                return bracketTeams.find(t => t.originalTeamId === team.id);
-              }).filter((team): team is BracketTeam => team !== null);
+                const teamsInThisMatch = previousRoundMatches.map(match => {
+                  if (!match.winner) return null;
+                  const team = match.winner === 'home' ? match.homeTeam : match.awayTeam;
+                  if (!team) return null;
+                  return bracketTeams.find(t => t.originalTeamId === team.id);
+                }).filter((team): team is BracketTeam => team !== null);
 
-              teamsInThisMatch.sort((a, b) => a.position - b.position);
+                teamsInThisMatch.sort((a, b) => a.position - b.position);
 
-              const matchHistory = teamsInThisMatch[0]?.matchHistory.find(m => m.round === round);
-              const isCompleted = Boolean(matchHistory);
+                const matchHistory = teamsInThisMatch[0]?.matchHistory.find(m => m.round === round);
+                const isCompleted = Boolean(matchHistory);
 
-              let winner: "home" | "away" | undefined;
-              let homeScore: number | undefined;
-              let awayScore: number | undefined;
+                let winner: "home" | "away" | undefined;
+                let homeScore: number | undefined;
+                let awayScore: number | undefined;
 
-              if (isCompleted) {
-                homeScore = matchHistory!.score;
-                awayScore = matchHistory!.opponentScore;
-                winner = matchHistory!.won ? "home" : "away";
+                if (isCompleted) {
+                  homeScore = matchHistory!.score;
+                  awayScore = matchHistory!.opponentScore;
+                  winner = matchHistory!.won ? "home" : "away";
+                }
+
+                bracketMatches.push({
+                  id: matchId,
+                  round,
+                  position: i + 1,
+                  homeTeam: teamsInThisMatch[0] ? {
+                    id: teamsInThisMatch[0].originalTeamId,
+                    name: teamsInThisMatch[0].teamName,
+                    seed: teamsInThisMatch[0].position,
+                    score: homeScore
+                  } : null,
+                  awayTeam: teamsInThisMatch[1] ? {
+                    id: teamsInThisMatch[1].originalTeamId,
+                    name: teamsInThisMatch[1].teamName,
+                    seed: teamsInThisMatch[1].position,
+                    score: awayScore
+                  } : null,
+                  winner,
+                  isPlayable: false,
+                  isCompleted,
+                  nextMatchId: round < finalRound ? `R${round + 1}M1` : undefined
+                });
               }
-
-              bracketMatches.push({
-                id: matchId,
-                round,
-                position: i + 1,
-                homeTeam: teamsInThisMatch[0] ? {
-                  id: teamsInThisMatch[0].originalTeamId,
-                  name: teamsInThisMatch[0].teamName,
-                  seed: teamsInThisMatch[0].position,
-                  score: homeScore
-                } : null,
-                awayTeam: teamsInThisMatch[1] ? {
-                  id: teamsInThisMatch[1].originalTeamId,
-                  name: teamsInThisMatch[1].teamName,
-                  seed: teamsInThisMatch[1].position,
-                  score: awayScore
-                } : null,
-                winner,
-                isPlayable: false,
-                isCompleted,
-                nextMatchId: round < 3 ? `R${round + 1}M1` : undefined
-              });
             }
           }
 
@@ -268,10 +300,10 @@ export function TournamentBracket({
     }, {} as Record<number, Match[]>);
 
     return Object.entries(roundsMap).map(([round, matches]) => ({
-      name: getRoundName(parseInt(round)),
+      name: getRoundName(parseInt(round), totalTeams),
       matches: matches.sort((a, b) => a.position - b.position),
     }));
-  }, [matches]);
+  }, [matches, totalTeams]);
 
   if (error) {
     return <NoTeamsState />;
@@ -310,7 +342,6 @@ export function TournamentBracket({
                       : "bg-white/5 border-white/10"
                   )}
                 >
-                  {/* Home Team */}
                   <div
                     className={cn(
                       "flex items-center gap-3 p-3 border-b",
@@ -337,7 +368,6 @@ export function TournamentBracket({
                     </div>
                   </div>
 
-                  {/* Away Team */}
                   <div
                     className={cn(
                       "flex items-center gap-3 p-3",
@@ -360,7 +390,7 @@ export function TournamentBracket({
                     >
                       {match.awayTeam?.score ?? "-"}
                     </div>
-                  </div>
+                    </div>
                 </button>
               </div>
             ))}

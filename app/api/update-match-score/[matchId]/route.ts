@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-
 import dbConnect from "@/lib/dbConnect";
 import ScheduledMatch from "@/app/models/ScheduledMatch";
 import TeamModel from "@/app/models/Team";
@@ -48,17 +47,28 @@ interface IMatch {
   };
 }
 
-async function createBracketTeams(tournamentId: string, session: any) {
+function determineInitialRound(numberOfTeams: number): {
+  roundType: string;
+  startingRound: number;
+} {
+  if (numberOfTeams <= 3) {
+    return { roundType: 'final', startingRound: 3 };
+  } else if (numberOfTeams <= 7) {
+    return { roundType: 'semiFinal', startingRound: 2 };
+  } else {
+    return { roundType: 'quarterFinal', startingRound: 1 };
+  }
+}
+
+async function createBracketTeams(tournamentId: string) {
   try {
-    await BracketTeamModel.deleteMany({ tournamentId }).session(session);
+    await BracketTeamModel.deleteMany({ tournamentId });
     await Match.deleteMany({ 
       tournamentId,
       roundType: { $in: ['quarterFinal', 'semiFinal', 'final'] }
-    }).session(session);
+    });
 
-    const teams = await TeamModel.find({ tournamentId })
-      .session(session)
-      .lean();
+    const teams = await TeamModel.find({ tournamentId }).lean();
 
     const rankedTeams = teams
       .map(team => ({
@@ -72,29 +82,35 @@ async function createBracketTeams(tournamentId: string, session: any) {
         return b.goalsFor - a.goalsFor;
       });
 
-    let numberOfTeamsForBracket = rankedTeams.length;
-    if (numberOfTeamsForBracket % 2 !== 0) {
-      numberOfTeamsForBracket--;
-    }
-    if (numberOfTeamsForBracket > 8) {
-      numberOfTeamsForBracket = 8;
+    const { roundType, startingRound } = determineInitialRound(rankedTeams.length);
+    let numberOfTeamsForBracket: number;
+
+    if (roundType === 'final') {
+      numberOfTeamsForBracket = 2;
+    } else if (roundType === 'semiFinal') {
+      numberOfTeamsForBracket = 4;
+    } else {
+      numberOfTeamsForBracket = Math.min(8, rankedTeams.length - (rankedTeams.length % 2));
     }
 
     const topTeams = rankedTeams.slice(0, numberOfTeamsForBracket);
 
     const bracketTeams = await Promise.all(
       topTeams.map(async (team, index) => {
-        return (await BracketTeamModel.create([{
+        const createdTeam = await BracketTeamModel.create({
           teamName: team.teamName,
           position: index + 1,
           originalTeamId: team._id,
-          tournamentId: tournamentId
-        }], { session }))[0];
+          tournamentId: tournamentId,
+          round: startingRound,
+          stage: roundType
+        });
+
+        return createdTeam;
       })
     );
 
     const matches = [];
-    const roundType = getRoundType(numberOfTeamsForBracket);
     const numberOfMatches = numberOfTeamsForBracket / 2;
 
     for (let i = 0; i < numberOfMatches; i++) {
@@ -103,7 +119,7 @@ async function createBracketTeams(tournamentId: string, session: any) {
 
       matches.push({
         tournamentId,
-        round: 1,
+        round: startingRound,
         roundType,
         homeTeam: homeTeam.teamName,
         awayTeam: awayTeam.teamName,
@@ -113,7 +129,7 @@ async function createBracketTeams(tournamentId: string, session: any) {
       });
     }
 
-    await Match.create(matches, { session });
+    await Match.create(matches);
     return bracketTeams;
   } catch (error) {
     console.error('Error creating bracket teams and matches:', error);
@@ -121,27 +137,14 @@ async function createBracketTeams(tournamentId: string, session: any) {
   }
 }
 
-function getRoundType(numberOfTeams: number): string {
-  switch (numberOfTeams) {
-    case 8:
-      return 'quarterFinal';
-    case 4:
-      return 'semiFinal';
-    case 2:
-      return 'final';
-    default:
-      return 'quarterFinal';
-  }
-}
-
-async function checkRoundCompletion(tournamentId: string, session: any) {
-  const tournament = await TournamentModel.findById(tournamentId).session(session);
+async function checkRoundCompletion(tournamentId: string) {
+  const tournament = await TournamentModel.findById(tournamentId);
   if (!tournament) {
     throw new Error("Tournament not found");
   }
 
   const totalRounds = tournament.numberOfRounds;
-  const allMatches = await ScheduledMatch.find({ tournamentId }).session(session);
+  const allMatches = await ScheduledMatch.find({ tournamentId });
 
   const matchesByRound = new Map();
   for (let round = 1; round <= totalRounds; round++) {
@@ -167,13 +170,11 @@ async function checkRoundCompletion(tournamentId: string, session: any) {
 
 export async function PUT(request: Request, { params }: { params: { matchId: string } }) {
   await dbConnect();
-  const session = await ScheduledMatch.startSession();
-  session.startTransaction();
 
   try {
     const { homeScore, awayScore, homePins, awayPins } = await request.json();
 
-    const match = await ScheduledMatch.findById(params.matchId).session(session);
+    const match = await ScheduledMatch.findById(params.matchId);
     if (!match) {
       throw new Error("Match not found");
     }
@@ -185,7 +186,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       homePins,
       awayPins
     };
-    await match.save({ session });
+    await match.save();
 
     // Update team statistics
     if (homeScore === awayScore) {
@@ -198,8 +199,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             ties: 1,
             pins: homePins,
           },
-        },
-        { session }
+        }
       );
 
       await TeamModel.findByIdAndUpdate(
@@ -211,8 +211,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             ties: 1,
             pins: awayPins,
           },
-        },
-        { session }
+        }
       );
     } else if (homeScore > awayScore) {
       await TeamModel.findByIdAndUpdate(
@@ -224,8 +223,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             wins: 1,
             pins: homePins,
           },
-        },
-        { session }
+        }
       );
 
       await TeamModel.findByIdAndUpdate(
@@ -237,8 +235,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             losses: 1,
             pins: awayPins,
           },
-        },
-        { session }
+        }
       );
     } else {
       await TeamModel.findByIdAndUpdate(
@@ -250,8 +247,7 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             losses: 1,
             pins: homePins,
           },
-        },
-        { session }
+        }
       );
 
       await TeamModel.findByIdAndUpdate(
@@ -263,25 +259,22 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
             wins: 1,
             pins: awayPins,
           },
-        },
-        { session }
+        }
       );
     }
 
     const { allRoundsCompleted, tournament, matchesByRound } = 
-      await checkRoundCompletion(match.tournamentId.toString(), session);
+      await checkRoundCompletion(match.tournamentId.toString());
 
     const roundStatuses = [...tournament.roundStatuses];
     roundStatuses[match.round - 1] = true;
     tournament.roundStatuses = roundStatuses;
     
     if (allRoundsCompleted) {
-      await createBracketTeams(match.tournamentId.toString(), session);
+      await createBracketTeams(match.tournamentId.toString());
     }
 
-    await tournament.save({ session });
-    await session.commitTransaction();
-    session.endSession();
+    await tournament.save();
 
     const updatedMatch = await ScheduledMatch.findById(params.matchId)
       .populate('homeTeamId')
@@ -298,9 +291,6 @@ export async function PUT(request: Request, { params }: { params: { matchId: str
       }});
   } catch (error) {
     console.error('Error updating match score:', error);
-    await session.abortTransaction();
-    session.endSession();
-
     return Response.json(
       { success: false, message: "Error updating match score" },
       { 
