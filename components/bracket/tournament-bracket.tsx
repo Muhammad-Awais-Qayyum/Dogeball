@@ -1,4 +1,3 @@
-// File 1: tournament-bracket.tsx
 "use client";
 
 import { useMemo, useEffect, useState } from "react";
@@ -19,7 +18,7 @@ const MATCHUP_CONFIGS = {
     { matchId: "R1M3", home: 3, away: 6 },
     { matchId: "R1M4", home: 2, away: 7 }
   ]
-};
+} as const;
 
 export interface BracketTeam {
   _id: string;
@@ -76,6 +75,10 @@ interface TournamentBracketProps {
   tournamentId?: string;
   roundStatuses?: boolean[];
 }
+
+type MatchupConfig = typeof MATCHUP_CONFIGS.FINALS | 
+                    typeof MATCHUP_CONFIGS.SEMIFINALS | 
+                    typeof MATCHUP_CONFIGS.QUARTERFINALS;
 
 const NoTeamsState = () => (
   <div className="flex flex-col items-center justify-center h-[79vh]">
@@ -154,8 +157,8 @@ export function TournamentBracket({
           const bracketMatches: Match[] = [];
           const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
 
-          let matchupConfig;
-          let initialRound;
+          let matchupConfig: MatchupConfig;
+          let initialRound: number;
 
           if (bracketTeams.length <= 2) {
             matchupConfig = MATCHUP_CONFIGS.FINALS;
@@ -168,7 +171,6 @@ export function TournamentBracket({
             initialRound = 1;
           }
 
-          // Create initial round matches
           matchupConfig.forEach((matchup, i) => {
             const homeTeam = sortedTeams.find(t => t.position === matchup.home);
             const awayTeam = sortedTeams.find(t => t.position === matchup.away);
@@ -214,7 +216,6 @@ export function TournamentBracket({
             });
           });
 
-          // Create subsequent rounds if needed
           if (bracketTeams.length > 2) {
             const finalRound = bracketTeams.length <= 4 ? 2 : 3;
             for (let round = initialRound + 1; round <= finalRound; round++) {
@@ -390,7 +391,7 @@ export function TournamentBracket({
                     >
                       {match.awayTeam?.score ?? "-"}
                     </div>
-                    </div>
+                  </div>
                 </button>
               </div>
             ))}
