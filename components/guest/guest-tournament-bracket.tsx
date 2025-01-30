@@ -90,12 +90,9 @@ const LoadingState = () => (
   </div>
 );
 
-const PlayoffsNotStartedState = () => (
+const NoTeamsState = () => (
   <div className="flex flex-col items-center justify-center h-36 md:h-48">
-    <div className="text-center max-w-md">
-      <p className="text-gray-300 text-sm md:text-base">The playoffs haven't started yet. Teams are currently competing in the regular season.</p>
-      <p className="text-gray-400 text-xs md:text-sm mt-2">Check back later to see the tournament bracket and follow your favorite teams.</p>
-    </div>
+    <p className="text-gray-400 text-xs md:text-sm">The playoffs haven't started yet. Check back later for tournament updates.</p>
   </div>
 );
 
@@ -318,15 +315,21 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
   // Render component
   return (
     <Card className="bg-white/10 border-white/10">
-    <CardHeader className="p-4 md:p-6">
-      <CardTitle className="text-xl md:text-2xl text-white">Tournament Bracket</CardTitle>
-    </CardHeader>
-    <CardContent className="p-2 md:p-6">
-      {loading ? (
-        <LoadingState />
-      ) : matches.length === 0 ? (
-        <PlayoffsNotStartedState />
-      ) : (
+      <CardHeader className="p-4 md:p-6">
+        <CardTitle className="text-xl md:text-2xl text-white">Tournament Bracket</CardTitle>
+      </CardHeader>
+      <CardContent className="p-2 md:p-6">
+        {loading ? (
+          <LoadingState />
+        ) : error ? (
+          <Alert variant="destructive" className="bg-red-500/10 border-red-500/20">
+            <AlertDescription className="text-red-400 text-sm md:text-base">
+              {error}
+            </AlertDescription>
+          </Alert>
+        ) : matches.length === 0 ? (
+          <NoTeamsState />
+        ) : (
           <div className="overflow-x-auto -mx-2 md:mx-0">
             <div className="min-w-[800px] md:min-w-[1000px] pb-4 md:pb-8">
               <div className="flex gap-4 md:gap-8">
