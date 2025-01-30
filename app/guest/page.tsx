@@ -29,7 +29,7 @@ export default function GuestDashboard() {
         const response = await axios.get('/api/get-tournament');
         if (response.data.success && response.data.data.length > 0) {
           setTournaments(response.data.data);
-          setSelectedTournamentId(response.data.data[0]._id);
+          setSelectedTournamentId(response.data.data[0]._id); // Select first tournament by default
         }
       } catch (error) {
         console.error('Error fetching tournaments:', error);
@@ -70,7 +70,9 @@ export default function GuestDashboard() {
         <h1 className="text-2xl md:text-3xl font-bold text-white">Tournament Dashboard</h1>
         <Select
           value={selectedTournamentId}
-          onValueChange={setSelectedTournamentId}
+          onValueChange={(value) => {
+            setSelectedTournamentId(value);
+          }}
         >
           <SelectTrigger className="w-full sm:w-[250px] bg-white/5 border-white/10 text-white">
             <SelectValue placeholder="Select tournament" />
@@ -91,25 +93,29 @@ export default function GuestDashboard() {
       
       {selectedTournamentId && (
         <>
+          {/* Tournament Standings - Updates when a new tournament is selected */}
           <div className="overflow-x-auto">
             <div className="min-w-full">
               <TournamentStandings selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
           
+          {/* Guest Tournament Bracket - Updates when a new tournament is selected */}
           <div className="overflow-x-auto">
             <div className="min-w-[768px] md:min-w-full">
               <GuestTournamentBracket selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
           
+          {/* Next Match - Updates when a new tournament is selected */}
           <div className="w-full lg:max-w-3xl">
-            <NextMatch />
+            <NextMatch  />
           </div>
           
+          {/* Tournament Calendar - Updates when a new tournament is selected */}
           <div className="overflow-x-auto">
             <div className="min-w-full">
-              <TournamentCalendar />
+              <TournamentCalendar  />
             </div>
           </div>
         </>
