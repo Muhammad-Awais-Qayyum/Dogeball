@@ -48,13 +48,13 @@ export default function GuestDashboard() {
     };
 
     fetchTournaments();
-  }, [selectedTournamentId]);
+  }, []);
 
   useEffect(() => {
     if (selectedTournamentId) {
       localStorage.setItem('selectedTournamentId', selectedTournamentId);
     }
-  })
+  }, [selectedTournamentId]);
 
   if (loading) {
     return (
@@ -108,23 +108,33 @@ export default function GuestDashboard() {
         <>
           <div className="overflow-x-auto">
             <div className="min-w-full">
-              <TournamentStandings selectedTournamentId={selectedTournamentId} />
+              <TournamentStandings 
+                key={selectedTournamentId} 
+                selectedTournamentId={selectedTournamentId} 
+              />
             </div>
           </div>
 
           <div className="overflow-x-auto">
             <div className="min-w-[768px] md:min-w-full">
-              <GuestTournamentBracket selectedTournamentId={selectedTournamentId} />
+              <GuestTournamentBracket 
+                key={selectedTournamentId} 
+                selectedTournamentId={selectedTournamentId} 
+              />
             </div>
           </div>
 
           <div className="w-full lg:max-w-3xl">
-            <NextMatch />
+            <NextMatch 
+              key={selectedTournamentId} 
+            />
           </div>
 
           <div className="overflow-x-auto">
             <div className="min-w-full">
-              <TournamentCalendar />
+              <TournamentCalendar 
+                key={selectedTournamentId} 
+              />
             </div>
           </div>
         </>
