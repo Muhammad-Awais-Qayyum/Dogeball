@@ -92,7 +92,7 @@ const LoadingState = () => (
 
 const NoTeamsState = () => (
   <div className="flex flex-col items-center justify-center h-36 md:h-48">
-    <p className="text-gray-400 text-xs md:text-sm">No teams available</p>
+    <p className="text-gray-400 text-xs md:text-sm">The playoffs haven't started yet. Check back later for tournament updates.</p>
   </div>
 );
 
