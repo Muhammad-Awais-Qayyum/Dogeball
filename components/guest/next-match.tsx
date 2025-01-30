@@ -34,12 +34,14 @@ export function NextMatch() {
   const [nextMatch, setNextMatch] = useState<Match | null>(null);
   const [homeTeam, setHomeTeam] = useState<Team | null>(null);
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
+  const [dataStatus, setDataStatus] = useState<'loading' | 'error' | 'fetching_teams' | 'complete'>('loading');
 
   useEffect(() => {
     const fetchNextMatch = async () => {
       try {
         setLoading(true);
         setError(null);
+        setDataStatus('loading');
 
         const matchesResponse = await axios.get("/api/get-all-scheduled-matches");
         
@@ -51,6 +53,7 @@ export function NextMatch() {
 
           if (upcomingMatch) {
             setNextMatch(upcomingMatch);
+            setDataStatus('fetching_teams');
 
             const [homeTeamRes, awayTeamRes] = await Promise.all([
               axios.post("/api/get-teams", { teamId: upcomingMatch.homeTeamId }),
@@ -63,11 +66,15 @@ export function NextMatch() {
             if (awayTeamRes.data.success) {
               setAwayTeam(awayTeamRes.data.data);
             }
+            setDataStatus('complete');
+          } else {
+            setDataStatus('complete');
           }
         }
       } catch (error) {
         console.error("Error fetching next match:", error);
         setError("Failed to load match data");
+        setDataStatus('error');
       } finally {
         setLoading(false);
       }
@@ -76,14 +83,19 @@ export function NextMatch() {
     fetchNextMatch();
   }, []);
 
-  if (loading) {
-    return (
-      <Card className="bg-white/10 border-white/10">
-        <CardContent className="flex items-center justify-center h-36 md:h-48">
-          <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-blue-400" />
-        </CardContent>
-      </Card>
-    );
+  const renderLoadingState = () => (
+    <Card className="bg-white/10 border-white/10">
+      <CardContent className="flex flex-col items-center justify-center h-36 md:h-48 gap-2">
+        <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-blue-400" />
+        <p className="text-gray-400 text-sm">
+          {dataStatus === 'loading' ? 'Loading matches...' : 'Loading team details...'}
+        </p>
+      </CardContent>
+    </Card>
+  );
+
+  if (loading || dataStatus === 'fetching_teams') {
+    return renderLoadingState();
   }
 
   if (error) {
@@ -103,7 +115,9 @@ export function NextMatch() {
           <CardTitle className="text-white text-lg md:text-xl">Next Match</CardTitle>
         </CardHeader>
         <CardContent className="p-4 md:p-6">
-          <div className="text-white text-center text-sm md:text-base">No upcoming matches scheduled</div>
+          <div className="text-white text-center text-sm md:text-base">
+            No upcoming matches scheduled
+          </div>
         </CardContent>
       </Card>
     );
@@ -117,7 +131,6 @@ export function NextMatch() {
       <CardContent className="p-4 md:p-6">
         <div className="space-y-4 md:space-y-6">
           <div className="flex flex-col sm:flex-row items-center gap-4 sm:justify-between">
-            {/* Home Team */}
             <div className="flex items-center gap-3 md:gap-4">
               <Avatar className="h-10 w-10 md:h-12 md:w-12 bg-white/10">
                 {homeTeam.teamPhoto?.url ? (
@@ -133,10 +146,8 @@ export function NextMatch() {
               </div>
             </div>
 
-            {/* VS */}
             <div className="text-xl md:text-2xl font-bold text-white">VS</div>
 
-            {/* Away Team */}
             <div className="flex items-center gap-3 md:gap-4">
               <div className="text-right">
                 <p className="text-base md:text-lg font-semibold text-white">
@@ -178,5 +189,4 @@ export function NextMatch() {
     </Card>
   );
 }
-
 export default NextMatch;
