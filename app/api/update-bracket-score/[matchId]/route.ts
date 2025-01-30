@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
 import dbConnect from "@/lib/dbConnect";
 import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';
@@ -235,7 +234,7 @@ export async function PUT(
     );
 
     if (!homeTeam || !awayTeam) {
-      return NextResponse.json({
+      return Response.json({
         success: false,
         message: 'Teams not found in bracket'
       }, { status: 404 });
@@ -316,7 +315,7 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({
+    return Response.json({
       success: true,
       data: {
         winner: {
@@ -339,7 +338,7 @@ export async function PUT(
 
   } catch (error) {
     console.error('Error updating bracket score:', error);
-    return NextResponse.json({
+    return Response.json({
       success: false,
       message: 'Failed to update bracket score'
     }, { status: 500 });
