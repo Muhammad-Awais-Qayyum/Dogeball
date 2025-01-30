@@ -34,75 +34,67 @@ export function NextMatch() {
   const [nextMatch, setNextMatch] = useState<Match | null>(null);
   const [homeTeam, setHomeTeam] = useState<Team | null>(null);
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
-
+ 
   useEffect(() => {
-    const fetchData = async (retries = 3) => {
-      for (let i = 0; i < retries; i++) {
-        try {
-          setLoading(true);
-          setError(null);
-
-          const matchesResponse = await axios.get("/api/get-all-scheduled-matches", {
-            headers: {
-              'Cache-Control': 'no-store, no-cache, must-revalidate',
-              'Pragma': 'no-cache'
-            }
-          });
-
-          if (matchesResponse.data.success) {
-            const upcomingMatch = matchesResponse.data.data.find((match: Match) => 
-              match.status === 'scheduled' || match.status === 'in_progress'
-            );
-
-            if (upcomingMatch) {
-              setNextMatch(upcomingMatch);
-
-              const [homeTeamRes, awayTeamRes] = await Promise.all([
-                axios.post("/api/get-teams", 
-                  { teamId: upcomingMatch.homeTeamId },
-                  {
-                    headers: {
-                      'Cache-Control': 'no-store, no-cache, must-revalidate',
-                      'Pragma': 'no-cache'
-                    }
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+ 
+        const matchesResponse = await axios.get("/api/get-all-scheduled-matches", {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+ 
+        if (matchesResponse.data.success) {
+          const upcomingMatch = matchesResponse.data.data.find((match: Match) => 
+            match.status === 'scheduled' || match.status === 'in_progress'
+          );
+ 
+          if (upcomingMatch) {
+            setNextMatch(upcomingMatch);
+ 
+            const [homeTeamRes, awayTeamRes] = await Promise.all([
+              axios.post("/api/get-teams", 
+                { teamId: upcomingMatch.homeTeamId },
+                {
+                  headers: {
+                    'Cache-Control': 'no-store, no-cache, must-revalidate',
+                    'Pragma': 'no-cache'
                   }
-                ),
-                axios.post("/api/get-teams", 
-                  { teamId: upcomingMatch.awayTeamId },
-                  {
-                    headers: {
-                      'Cache-Control': 'no-store, no-cache, must-revalidate',
-                      'Pragma': 'no-cache'
-                    }
+                }
+              ),
+              axios.post("/api/get-teams", 
+                { teamId: upcomingMatch.awayTeamId },
+                {
+                  headers: {
+                    'Cache-Control': 'no-store, no-cache, must-revalidate',
+                    'Pragma': 'no-cache'
                   }
-                )
-              ]);
-
-              if (homeTeamRes.data.success && awayTeamRes.data.success) {
-                setHomeTeam(homeTeamRes.data.data);
-                setAwayTeam(awayTeamRes.data.data);
-                break;
-              }
-            } else {
-              break;
+                }
+              )
+            ]);
+ 
+            if (homeTeamRes.data.success && awayTeamRes.data.success) {
+              setHomeTeam(homeTeamRes.data.data);
+              setAwayTeam(awayTeamRes.data.data);
             }
           }
-        } catch (error) {
-          console.error(`Attempt ${i + 1} failed:`, error);
-          if (i === retries - 1) {
-            setError("Failed to load match data");
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-            continue;
-          }
-        } finally {
-          setLoading(false);
         }
+      } catch (error) {
+        console.error('Error fetching match data:', error);
+        setError("Failed to load match data");
+      } finally {
+        setLoading(false);
       }
     };
-
+ 
     fetchData();
   }, []);
+ 
+  
 
   if (loading) {
     return (
