@@ -99,7 +99,6 @@ const PlayoffsNotStartedState = () => (
   </div>
 );
 
-
 // Helper functions
 function getRoundName(round: number, totalTeams: number): string {
   if (totalTeams <= 2) return "Final";
@@ -153,6 +152,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
 
       try {
         setLoading(true);
+        setMatches([]);  // Reset matches when fetching new tournament
         const response = await axios.get(`/api/bracket-team?tournamentId=${selectedTournamentId}`);
 
         if (response.data.success) {

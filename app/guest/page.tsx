@@ -20,12 +20,7 @@ interface Tournament {
 
 export default function GuestDashboard() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('selectedTournamentId') || "";
-    }
-    return "";
-  });
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,11 +29,7 @@ export default function GuestDashboard() {
         const response = await axios.get('/api/get-tournament');
         if (response.data.success && response.data.data.length > 0) {
           setTournaments(response.data.data);
-          if (!selectedTournamentId) {
-            const newId = response.data.data[0]._id;
-            setSelectedTournamentId(newId);
-            localStorage.setItem('selectedTournamentId', newId);
-          }
+          setSelectedTournamentId(response.data.data[0]._id);
         }
       } catch (error) {
         console.error('Error fetching tournaments:', error);
@@ -49,12 +40,6 @@ export default function GuestDashboard() {
 
     fetchTournaments();
   }, []);
-
-  useEffect(() => {
-    if (selectedTournamentId) {
-      localStorage.setItem('selectedTournamentId', selectedTournamentId);
-    }
-  }, [selectedTournamentId]);
 
   if (loading) {
     return (
@@ -103,38 +88,28 @@ export default function GuestDashboard() {
           </SelectContent>
         </Select>
       </div>
-
+      
       {selectedTournamentId && (
         <>
           <div className="overflow-x-auto">
             <div className="min-w-full">
-              <TournamentStandings 
-                key={selectedTournamentId} 
-                selectedTournamentId={selectedTournamentId} 
-              />
+              <TournamentStandings selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
-
+          
           <div className="overflow-x-auto">
             <div className="min-w-[768px] md:min-w-full">
-              <GuestTournamentBracket 
-                key={selectedTournamentId} 
-                selectedTournamentId={selectedTournamentId} 
-              />
+              <GuestTournamentBracket selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
-
+          
           <div className="w-full lg:max-w-3xl">
-            <NextMatch 
-              key={selectedTournamentId} 
-            />
+            <NextMatch />
           </div>
-
+          
           <div className="overflow-x-auto">
             <div className="min-w-full">
-              <TournamentCalendar 
-                key={selectedTournamentId} 
-              />
+              <TournamentCalendar />
             </div>
           </div>
         </>
