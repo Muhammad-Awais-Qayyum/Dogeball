@@ -20,7 +20,12 @@ interface Tournament {
 
 export default function GuestDashboard() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('selectedTournamentId') || "";
+    }
+    return "";
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +34,11 @@ export default function GuestDashboard() {
         const response = await axios.get('/api/get-tournament');
         if (response.data.success && response.data.data.length > 0) {
           setTournaments(response.data.data);
-          setSelectedTournamentId(response.data.data[0]._id);
+          if (!selectedTournamentId) {
+            const newId = response.data.data[0]._id;
+            setSelectedTournamentId(newId);
+            localStorage.setItem('selectedTournamentId', newId);
+          }
         }
       } catch (error) {
         console.error('Error fetching tournaments:', error);
@@ -39,7 +48,13 @@ export default function GuestDashboard() {
     };
 
     fetchTournaments();
-  }, []);
+  }, [selectedTournamentId]);
+
+  useEffect(() => {
+    if (selectedTournamentId) {
+      localStorage.setItem('selectedTournamentId', selectedTournamentId);
+    }
+  })
 
   if (loading) {
     return (
@@ -88,7 +103,7 @@ export default function GuestDashboard() {
           </SelectContent>
         </Select>
       </div>
-      
+
       {selectedTournamentId && (
         <>
           <div className="overflow-x-auto">
@@ -96,17 +111,17 @@ export default function GuestDashboard() {
               <TournamentStandings selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <div className="min-w-[768px] md:min-w-full">
               <GuestTournamentBracket selectedTournamentId={selectedTournamentId} />
             </div>
           </div>
-          
+
           <div className="w-full lg:max-w-3xl">
             <NextMatch />
           </div>
-          
+
           <div className="overflow-x-auto">
             <div className="min-w-full">
               <TournamentCalendar />
