@@ -313,6 +313,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
   }, [matches, totalTeams]);
 
   // Render component
+
   return (
     <Card className="bg-white/10 border-white/10">
       <CardHeader className="p-4 md:p-6">
