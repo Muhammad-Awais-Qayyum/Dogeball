@@ -51,25 +51,31 @@ function determineInitialRound(numberOfTeams: number): {
   roundType: string;
   startingRound: number;
 } {
+  // For 2-3 teams: Direct to Finals
   if (numberOfTeams <= 3) {
     return { roundType: 'final', startingRound: 3 };
-  } else if (numberOfTeams <= 7) {
+  }
+  // For 4-6 teams: Start with Semifinals
+  else if (numberOfTeams <= 6) {
     return { roundType: 'semiFinal', startingRound: 2 };
-  } else {
+  }
+  // For 7+ teams: Start with Quarterfinals
+  else {
     return { roundType: 'quarterFinal', startingRound: 1 };
   }
 }
 
 async function createBracketTeams(tournamentId: string) {
   try {
+    // Clear existing bracket data
     await BracketTeamModel.deleteMany({ tournamentId });
     await Match.deleteMany({ 
       tournamentId,
       roundType: { $in: ['quarterFinal', 'semiFinal', 'final'] }
     });
 
+    // Get and rank teams based on performance
     const teams = await TeamModel.find({ tournamentId }).lean();
-
     const rankedTeams = teams
       .map(team => ({
         ...team,
@@ -78,61 +84,83 @@ async function createBracketTeams(tournamentId: string) {
       }))
       .sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
-        if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+        if (b.goalDifference !== a.goalDifference) 
+          return b.goalDifference - a.goalDifference;
         return b.goalsFor - a.goalsFor;
       });
 
+    // Determine tournament structure
     const { roundType, startingRound } = determineInitialRound(rankedTeams.length);
     let numberOfTeamsForBracket: number;
 
+    // Select number of teams based on tournament size
     if (roundType === 'final') {
       numberOfTeamsForBracket = 2;
     } else if (roundType === 'semiFinal') {
       numberOfTeamsForBracket = 4;
     } else {
-      numberOfTeamsForBracket = Math.min(8, rankedTeams.length - (rankedTeams.length % 2));
+      numberOfTeamsForBracket = Math.min(8, rankedTeams.length);
     }
 
+    // Create bracket teams for top performers
     const topTeams = rankedTeams.slice(0, numberOfTeamsForBracket);
-
     const bracketTeams = await Promise.all(
       topTeams.map(async (team, index) => {
-        const createdTeam = await BracketTeamModel.create({
+        return await BracketTeamModel.create({
           teamName: team.teamName,
           position: index + 1,
           originalTeamId: team._id,
           tournamentId: tournamentId,
           round: startingRound,
-          stage: roundType
+          stage: roundType,
+          isEliminated: false,
+          status: 'incomplete',
+          score: 0
         });
-
-        return createdTeam;
       })
     );
 
-    const matches = [];
-    const numberOfMatches = numberOfTeamsForBracket / 2;
-
-    for (let i = 0; i < numberOfMatches; i++) {
-      const homeTeam = bracketTeams[i];
-      const awayTeam = bracketTeams[numberOfTeamsForBracket - 1 - i];
-
-      matches.push({
-        tournamentId,
-        round: startingRound,
-        roundType,
-        homeTeam: homeTeam.teamName,
-        awayTeam: awayTeam.teamName,
-        homeTeamId: homeTeam.originalTeamId,
-        awayTeamId: awayTeam.originalTeamId,
-        status: 'unscheduled'
-      });
+    // Create initial matches based on seeding
+    let matchPairings = [];
+    if (roundType === 'final') {
+      matchPairings = [{ home: 1, away: 2 }];
+    } else if (roundType === 'semiFinal') {
+      matchPairings = [
+        { home: 1, away: 4 },
+        { home: 2, away: 3 }
+      ];
+    } else {
+      matchPairings = [
+        { home: 1, away: 8 },
+        { home: 4, away: 5 },
+        { home: 3, away: 6 },
+        { home: 2, away: 7 }
+      ];
     }
 
-    await Match.create(matches);
+    // Create matches
+    await Promise.all(
+      matchPairings.map(async (pairing) => {
+        const homeTeam = bracketTeams.find(t => t.position === pairing.home);
+        const awayTeam = bracketTeams.find(t => t.position === pairing.away);
+        if (homeTeam && awayTeam) {
+          await Match.create({
+            tournamentId,
+            round: startingRound,
+            roundType,
+            homeTeam: homeTeam.teamName,
+            awayTeam: awayTeam.teamName,
+            homeTeamId: homeTeam.originalTeamId,
+            awayTeamId: awayTeam.originalTeamId,
+            status: 'unscheduled'
+          });
+        }
+      })
+    );
+
     return bracketTeams;
   } catch (error) {
-    console.error('Error creating bracket teams and matches:', error);
+    console.error('Error creating bracket:', error);
     throw error;
   }
 }

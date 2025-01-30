@@ -1,13 +1,13 @@
-export const dynamic = 'force-dynamic';
-
+import { NextResponse } from 'next/server';
+import dbConnect from "@/lib/dbConnect";
 import BracketTeamModel, { TournamentStage } from '@/app/models/BracketTeam';
 import TeamModel from '@/app/models/Team';
 import Match from '@/app/models/Match';
 import ScheduledMatch from '@/app/models/ScheduledMatch';
 import Tournament from '@/app/models/Tournament';
 import mongoose from 'mongoose';
-import dbConnect from '@/lib/dbConnect';
 
+// Define interfaces for data structures
 interface TeamData {
   id: string;
   name: string;
@@ -22,399 +22,324 @@ interface MatchUpdateData {
   awayPins: number;
 }
 
-interface WinnerUpdate {
-  isEliminated: boolean;
-  score: number;
-  status: 'completed' | 'incomplete';
-  round?: number;
-  stage?: TournamentStage;
-  nextMatchId?: string | null;
+interface BracketMatch {
+  tournamentId: mongoose.Types.ObjectId;
+  round: number;
+  roundType: 'quarterFinal' | 'semiFinal' | 'final';
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamId: mongoose.Types.ObjectId;
+  awayTeamId: mongoose.Types.ObjectId;
+  status: 'scheduled' | 'unscheduled' | 'completed';
 }
 
-async function handleQuarterFinalsCompletion(
-  tournamentId: mongoose.Types.ObjectId,
-  totalTeams: number
-) {
-  if (totalTeams <= 4) return;
+interface StageProgression {
+  currentRound: number;
+  nextRound: number | null;
+  nextStage: TournamentStage | null;
+  teamsNeeded: number | null;
+  matchPrefix: string | null;
+}
 
-  const quarterFinalTeams = await BracketTeamModel.find({
-    tournamentId,
-    stage: TournamentStage.QUARTER_FINALS
-  });
+interface MatchHistory {
+  round: number;
+  stage: TournamentStage;
+  opponent: mongoose.Types.ObjectId;
+  opponentPosition: number;
+  position: number;
+  score: number;
+  opponentScore: number;
+  won: boolean;
+}
 
-  const allQuarterFinalsCompleted = quarterFinalTeams.every(team => 
-    team.status === 'completed'
-  );
+// Helper function to determine tournament progression for each stage
+function getStageProgression(stage: TournamentStage): StageProgression {
+  switch (stage) {
+    case TournamentStage.QUARTER_FINALS:
+      return {
+        currentRound: 1,
+        nextRound: 2,
+        nextStage: TournamentStage.SEMI_FINALS,
+        teamsNeeded: 4,
+        matchPrefix: 'R2M'
+      };
+    case TournamentStage.SEMI_FINALS:
+      return {
+        currentRound: 2,
+        nextRound: 3,
+        nextStage: TournamentStage.FINALS,
+        teamsNeeded: 2,
+        matchPrefix: 'R3M'
+      };
+    case TournamentStage.FINALS:
+      return {
+        currentRound: 3,
+        nextRound: null,
+        nextStage: null,
+        teamsNeeded: null,
+        matchPrefix: null
+      };
+    default:
+      throw new Error('Invalid tournament stage');
+  }
+}
 
-  if (!allQuarterFinalsCompleted) return;
+// Function to update both team statistics and match history
+async function updateTeamStats(
+  team: any,
+  opponent: any,
+  score: number,
+  opponentScore: number,
+  isWinner: boolean,
+  pins: number
+): Promise<void> {
+  // Create match history entry
+  const matchHistory: MatchHistory = {
+    round: team.round,
+    stage: team.stage,
+    opponent: opponent._id,
+    opponentPosition: opponent.position,
+    position: team.position,
+    score,
+    opponentScore,
+    won: isWinner
+  };
 
-  const semiFinalTeams = await BracketTeamModel.find({
-    tournamentId,
-    stage: TournamentStage.SEMI_FINALS,
-    isEliminated: false,
-    status: 'incomplete'
-  }).sort({ position: 1 });
+  // Prepare update data for bracket team
+  const updateData = {
+    score,
+    status: 'completed' as const,
+    isEliminated: !isWinner,
+    $push: { matchHistory }
+  };
 
-  if (semiFinalTeams.length === 4) {
-    const existingSemiFinals = await Match.find({
-      tournamentId,
-      roundType: 'semiFinal'
-    });
+  // Update bracket team while preserving in database
+  await BracketTeamModel.findByIdAndUpdate(team._id, updateData);
 
-    if (existingSemiFinals.length === 0) {
-      const r2m1Teams = semiFinalTeams.filter(team => team.nextMatchId === 'R2M1');
-      const r2m2Teams = semiFinalTeams.filter(team => team.nextMatchId === 'R2M2');
-
-      if (r2m1Teams.length === 2 && r2m2Teams.length === 2) {
-        const semifinals = [
-          {
-            tournamentId,
-            round: 2,
-            roundType: 'semiFinal',
-            homeTeam: r2m1Teams[0].teamName,
-            awayTeam: r2m1Teams[1].teamName,
-            homeTeamId: r2m1Teams[0].originalTeamId,
-            awayTeamId: r2m1Teams[1].originalTeamId,
-            status: 'unscheduled'
-          },
-          {
-            tournamentId,
-            round: 2,
-            roundType: 'semiFinal',
-            homeTeam: r2m2Teams[0].teamName,
-            awayTeam: r2m2Teams[1].teamName,
-            homeTeamId: r2m2Teams[0].originalTeamId,
-            awayTeamId: r2m2Teams[1].originalTeamId,
-            status: 'unscheduled'
-          }
-        ];
-
-        await Match.insertMany(semifinals);
+  // Update main team statistics
+  await TeamModel.findByIdAndUpdate(
+    team.originalTeamId,
+    {
+      $inc: {
+        wins: isWinner ? 1 : 0,
+        losses: isWinner ? 0 : 1,
+        goalsFor: score,
+        goalsAgainst: opponentScore,
+        pins
       }
     }
-  }
-}
-
-async function handleSemiFinalsCompletion(
-  tournamentId: mongoose.Types.ObjectId,
-  totalTeams: number
-) {
-  if (totalTeams <= 2) return;
-
-  const semiFinalTeams = await BracketTeamModel.find({
-    tournamentId,
-    stage: TournamentStage.SEMI_FINALS
-  });
-
-  const allSemiFinalsCompleted = semiFinalTeams.every(team => 
-    team.status === 'completed'
   );
-
-  if (!allSemiFinalsCompleted) return;
-
-  const finalTeams = await BracketTeamModel.find({
-    tournamentId,
-    stage: TournamentStage.FINALS,
-    isEliminated: false,
-    status: 'incomplete'
-  }).sort({ position: 1 });
-
-  if (finalTeams.length === 2) {
-    const existingFinal = await Match.findOne({
-      tournamentId,
-      roundType: 'final'
-    });
-
-    if (!existingFinal) {
-      await Match.create({
-        tournamentId,
-        round: 3,
-        roundType: 'final',
-        homeTeam: finalTeams[0].teamName,
-        awayTeam: finalTeams[1].teamName,
-        homeTeamId: finalTeams[0].originalTeamId,
-        awayTeamId: finalTeams[1].originalTeamId,
-        status: 'unscheduled'
-      });
-    }
-  }
 }
 
+// Function to create matches for next tournament stage
+async function createNextStageMatches(
+  tournamentId: mongoose.Types.ObjectId,
+  winners: any[],
+  currentStage: TournamentStage
+): Promise<void> {
+  const progression = getStageProgression(currentStage);
+  if (!progression.nextStage) return;
+
+  let matches: BracketMatch[] = [];
+
+  if (currentStage === TournamentStage.QUARTER_FINALS) {
+    matches = [
+      {
+        tournamentId,
+        round: progression.nextRound!,
+        roundType: 'semiFinal',
+        homeTeam: winners[0].teamName,
+        awayTeam: winners[3].teamName,
+        homeTeamId: winners[0].originalTeamId,
+        awayTeamId: winners[3].originalTeamId,
+        status: 'unscheduled'
+      },
+      {
+        tournamentId,
+        round: progression.nextRound!,
+        roundType: 'semiFinal',
+        homeTeam: winners[1].teamName,
+        awayTeam: winners[2].teamName,
+        homeTeamId: winners[1].originalTeamId,
+        awayTeamId: winners[2].originalTeamId,
+        status: 'unscheduled'
+      }
+    ];
+  } else if (currentStage === TournamentStage.SEMI_FINALS) {
+    matches = [{
+      tournamentId,
+      round: progression.nextRound!,
+      roundType: 'final',
+      homeTeam: winners[0].teamName,
+      awayTeam: winners[1].teamName,
+      homeTeamId: winners[0].originalTeamId,
+      awayTeamId: winners[1].originalTeamId,
+      status: 'unscheduled'
+    }];
+  }
+
+  // Create matches for next stage
+  if (matches.length > 0) {
+    await Match.create(matches);
+  }
+
+  // Update all advancing teams for next stage
+  await Promise.all(winners.map(async (team, index) => {
+    const nextMatchId = `${progression.matchPrefix}${Math.ceil((index + 1) / 2)}`;
+    await BracketTeamModel.findByIdAndUpdate(team._id, {
+      round: progression.nextRound,
+      stage: progression.nextStage,
+      status: 'incomplete',
+      nextMatchId,
+      score: 0
+    });
+  }));
+}
+
+// Function to check if all matches in a stage are completed
+async function isStageCompleted(
+  tournamentId: mongoose.Types.ObjectId,
+  stage: TournamentStage
+): Promise<boolean> {
+  const teamsInStage = await BracketTeamModel.find({
+    tournamentId,
+    stage
+  });
+  return teamsInStage.every(team => team.status === 'completed');
+}
+
+// Main route handler for updating bracket scores
 export async function PUT(
   request: Request,
   { params }: { params: { matchId: string } }
 ) {
   try {
-    const {
-      homeTeam: homeTeamData,
-      awayTeam: awayTeamData,
-      homeScore,
-      awayScore,
-      homePins,
-      awayPins
-    } = await request.json();
-
     await dbConnect();
+    const matchData: MatchUpdateData = await request.json();
 
+    // Find all teams involved in this match
     const bracketTeams = await BracketTeamModel.find({
       $or: [
-        { originalTeamId: homeTeamData.id },
-        { originalTeamId: awayTeamData.id }
-      ],
-      isEliminated: false
-    }).sort({ position: 1 });
+        { originalTeamId: matchData.homeTeam.id },
+        { originalTeamId: matchData.awayTeam.id }
+      ]
+    });
 
-    const homeTeam = bracketTeams.find(team => team.originalTeamId.toString() === homeTeamData.id);
-    const awayTeam = bracketTeams.find(team => team.originalTeamId.toString() === awayTeamData.id);
+    const homeTeam = bracketTeams.find(
+      team => team.originalTeamId.toString() === matchData.homeTeam.id
+    );
+    const awayTeam = bracketTeams.find(
+      team => team.originalTeamId.toString() === matchData.awayTeam.id
+    );
 
     if (!homeTeam || !awayTeam) {
-      return Response.json({
+      return NextResponse.json({
         success: false,
-        message: 'One or both teams not found'
+        message: 'Teams not found in bracket'
       }, { status: 404 });
     }
 
-    try {
-      const totalTeams = await BracketTeamModel.countDocuments({
-        tournamentId: homeTeam.tournamentId
-      });
-
-      const scheduledMatch = await ScheduledMatch.findOne({
-        $and: [
-          { homeTeamId: new mongoose.Types.ObjectId(homeTeamData.id) },
-          { awayTeamId: new mongoose.Types.ObjectId(awayTeamData.id) },
-          { status: "scheduled" }
-        ]
-      });
-
-      if (scheduledMatch) {
-        await ScheduledMatch.findByIdAndUpdate(
-          scheduledMatch._id,
-          { status: "completed" }
-        );
-      }
-
-      const isHomeWinner = homeScore > awayScore;
-      const winner = isHomeWinner ? homeTeam : awayTeam;
-      const loser = isHomeWinner ? awayTeam : homeTeam;
-      const currentStage = getStageFromRound(winner.round, totalTeams);
-
-      // Update home team
-      await BracketTeamModel.findByIdAndUpdate(
-        homeTeam._id,
+    // Update scheduled match status
+    const scheduledMatches = await ScheduledMatch.find({
+      tournamentId: homeTeam.tournamentId,
+      $or: [
         {
-          score: homeScore,
-          $push: {
-            matchHistory: {
-              round: homeTeam.round,
-              stage: currentStage,
-              opponent: awayTeam._id,
-              opponentPosition: awayTeam.position,
-              position: homeTeam.position,
-              score: homeScore,
-              opponentScore: awayScore,
-              won: isHomeWinner
-            }
-          }
-        }
-      );
-
-      // Update away team
-      await BracketTeamModel.findByIdAndUpdate(
-        awayTeam._id,
+          homeTeamId: new mongoose.Types.ObjectId(matchData.homeTeam.id),
+          awayTeamId: new mongoose.Types.ObjectId(matchData.awayTeam.id)
+        },
         {
-          score: awayScore,
-          $push: {
-            matchHistory: {
-              round: awayTeam.round,
-              stage: currentStage,
-              opponent: homeTeam._id,
-              opponentPosition: homeTeam.position,
-              position: awayTeam.position,
-              score: awayScore,
-              opponentScore: homeScore,
-              won: !isHomeWinner
-            }
-          }
+          homeTeamId: new mongoose.Types.ObjectId(matchData.awayTeam.id),
+          awayTeamId: new mongoose.Types.ObjectId(matchData.homeTeam.id)
         }
+      ],
+      status: "scheduled"
+    });
+
+    // Mark all scheduled matches as completed
+    if (scheduledMatches.length > 0) {
+      await ScheduledMatch.updateMany(
+        { _id: { $in: scheduledMatches.map(match => match._id) } },
+        { status: "completed" }
       );
-
-      // Update team statistics
-      await TeamModel.findByIdAndUpdate(
-        homeTeamData.id,
-        {
-          $inc: {
-            goalsFor: homeScore,
-            goalsAgainst: awayScore,
-            pins: homePins,
-            wins: isHomeWinner ? 1 : 0,
-            losses: isHomeWinner ? 0 : 1,
-          }
-        }
-      );
-
-      await TeamModel.findByIdAndUpdate(
-        awayTeamData.id,
-        {
-          $inc: {
-            goalsFor: awayScore,
-            goalsAgainst: homeScore,
-            pins: awayPins,
-            wins: isHomeWinner ? 0 : 1,
-            losses: isHomeWinner ? 1 : 0,
-          }
-        }
-      );
-
-      // Update loser status
-      await BracketTeamModel.findByIdAndUpdate(
-        loser._id,
-        {
-          isEliminated: true,
-          status: 'completed'
-        }
-      );
-
-      let nextRound = winner.round;
-      let nextStage = currentStage;
-      let nextMatchId = null;
-
-      if (totalTeams <= 2) {
-        nextStage = TournamentStage.FINALS;
-        nextRound = 3;
-      } else if (totalTeams <= 4) {
-        if (currentStage === TournamentStage.SEMI_FINALS) {
-          nextStage = TournamentStage.FINALS;
-          nextRound = winner.round + 1;
-          nextMatchId = 'R3M1';
-        }
-      } else {
-        if (currentStage === TournamentStage.QUARTER_FINALS) {
-          nextStage = TournamentStage.SEMI_FINALS;
-          nextRound = winner.round + 1;
-          nextMatchId = calculateNextMatchId(winner.position, nextRound, totalTeams);
-        } else if (currentStage === TournamentStage.SEMI_FINALS) {
-          nextStage = TournamentStage.FINALS;
-          nextRound = winner.round + 1;
-          nextMatchId = 'R3M1';
-        }
-      }
-
-      const winnerUpdate: WinnerUpdate = currentStage === TournamentStage.FINALS
-        ? {
-          isEliminated: true,
-          score: 0,
-          status: 'completed'
-        }
-        : {
-          isEliminated: false,
-          score: 0,
-          status: 'incomplete',
-          round: nextRound,
-          stage: nextStage,
-          nextMatchId: nextMatchId
-        };
-
-      await BracketTeamModel.findByIdAndUpdate(winner._id, winnerUpdate);
-
-      if (totalTeams > 4 && currentStage === TournamentStage.QUARTER_FINALS) {
-        await handleQuarterFinalsCompletion(winner.tournamentId, totalTeams);
-      }
-      if (totalTeams > 2 && currentStage === TournamentStage.SEMI_FINALS) {
-        await handleSemiFinalsCompletion(winner.tournamentId, totalTeams);
-      }
-      if (currentStage === TournamentStage.FINALS) {
-        await Tournament.findByIdAndUpdate(winner.tournamentId, { progress: "Completed" });
-      }
-
-      return Response.json({
-        success: true,
-        data: {
-          winner: {
-            id: winner._id,
-            teamName: winner.teamName,
-            round: nextRound,
-            stage: nextStage,
-            position: winner.position,
-            nextMatchId: nextMatchId,
-            matchStats: {
-              goalsFor: isHomeWinner ? homeScore : awayScore,
-              goalsAgainst: isHomeWinner ? awayScore : homeScore,
-              pins: isHomeWinner ? homePins : awayPins
-            }
-          },
-          loser: {
-            id: loser._id,
-            teamName: loser.teamName,
-            position: loser.position,
-            stage: currentStage,
-            isEliminated: true,
-            matchStats: {
-              goalsFor: isHomeWinner ? awayScore : homeScore,
-              goalsAgainst: isHomeWinner ? homeScore : awayScore,
-              pins: isHomeWinner ? awayPins : homePins
-            }
-          }
-        }
-      }, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-    } catch (error) {
-      throw error;
     }
-  } catch (error) {
-    console.error('Error updating match:', error);
-    return Response.json({
-      success: false,
-      message: 'Failed to update match'
-    }, { 
-      status: 500,
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache'
+
+    // Determine winner and loser
+    const isHomeWinner = matchData.homeScore > matchData.awayScore;
+    const winner = isHomeWinner ? homeTeam : awayTeam;
+    const loser = isHomeWinner ? awayTeam : homeTeam;
+
+    // Update both teams while preserving them in database
+    await Promise.all([
+      updateTeamStats(
+        winner,
+        loser,
+        isHomeWinner ? matchData.homeScore : matchData.awayScore,
+        isHomeWinner ? matchData.awayScore : matchData.homeScore,
+        true,
+        isHomeWinner ? matchData.homePins : matchData.awayPins
+      ),
+      updateTeamStats(
+        loser,
+        winner,
+        isHomeWinner ? matchData.awayScore : matchData.homeScore,
+        isHomeWinner ? matchData.homeScore : matchData.awayScore,
+        false,
+        isHomeWinner ? matchData.awayPins : matchData.homePins
+      )
+    ]);
+
+    // Check stage completion and handle progression
+    const stageCompleted = await isStageCompleted(winner.tournamentId, winner.stage);
+
+    if (stageCompleted && winner.stage !== TournamentStage.FINALS) {
+      // Get all winners from current stage
+      const winners = await BracketTeamModel.find({
+        tournamentId: winner.tournamentId,
+        stage: winner.stage,
+        isEliminated: false
+      }).sort({ position: 1 });
+
+      // Create next stage matches and update advancing teams
+      await createNextStageMatches(winner.tournamentId, winners, winner.stage);
+    }
+
+    // Handle tournament completion
+    if (winner.stage === TournamentStage.FINALS && stageCompleted) {
+      await Tournament.findByIdAndUpdate(
+        winner.tournamentId,
+        {
+          progress: "Completed",
+          winner: winner.originalTeamId
+        }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        winner: {
+          id: winner._id,
+          teamName: winner.teamName,
+          round: winner.round,
+          stage: winner.stage,
+          position: winner.position,
+          nextMatchId: winner.nextMatchId
+        },
+        loser: {
+          id: loser._id,
+          teamName: loser.teamName,
+          position: loser.position,
+          stage: loser.stage,
+          isEliminated: true
+        }
       }
     });
-  }
-}
 
-function getStageFromRound(round: number, totalTeams: number): TournamentStage {
-  if (totalTeams <= 2) return TournamentStage.FINALS;
-  if (totalTeams <= 4) {
-    return round === 2 ? TournamentStage.FINALS : TournamentStage.SEMI_FINALS;
+  } catch (error) {
+    console.error('Error updating bracket score:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Failed to update bracket score'
+    }, { status: 500 });
   }
-  switch (round) {
-    case 1:
-      return TournamentStage.QUARTER_FINALS;
-    case 2:
-      return TournamentStage.SEMI_FINALS;
-    case 3:
-      return TournamentStage.FINALS;
-    default:
-      return TournamentStage.FINALS;
-  }
-}
-
-function calculateNextMatchId(position: number, nextRound: number, totalTeams: number): string | null {
-  if (totalTeams <= 2) return null;
-  if (totalTeams <= 4) {
-    return nextRound === 2 ? 'R2M1' : null;
-  }
-
-  if (nextRound === 2) {
-    if (position === 1 || position === 8 || position === 4 || position === 5) {
-      return 'R2M1';
-    }
-    if (position === 2 || position === 7 || position === 3 || position === 6) {
-      return 'R2M2';
-    }
-  }
-
-  if (nextRound === 3) {
-    return 'R3M1';
-  }
-
-  return null;
 }
