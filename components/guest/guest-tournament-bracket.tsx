@@ -5,9 +5,7 @@ import { cn } from "@/lib/utils";
 import axios from "axios";
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Constants for tournament structure
 const MATCHUP_CONFIGS = {
   FINALS: [
     { matchId: "R3M1", home: 1, away: 2 }
@@ -24,7 +22,6 @@ const MATCHUP_CONFIGS = {
   ]
 };
 
-// Type definitions with improved clarity
 interface BracketTeam {
   _id: string;
   teamName: string;
@@ -80,7 +77,6 @@ interface GuestTournamentBracketProps {
   selectedTournamentId: string;
 }
 
-// Helper components for different states
 const LoadingState = () => (
   <div className="flex items-center justify-center h-36 md:h-48">
     <div className="flex flex-col items-center gap-3 md:gap-4">
@@ -96,7 +92,6 @@ const NoTeamsState = () => (
   </div>
 );
 
-// Helper functions
 function getRoundName(round: number, totalTeams: number): string {
   if (totalTeams <= 2) return "Final";
   if (totalTeams <= 4) {
@@ -111,7 +106,6 @@ function getRoundName(round: number, totalTeams: number): string {
 }
 
 function determineInitialRoundAndConfig(totalTeams: number) {
-  // This determines which rounds to display based on team count
   if (totalTeams <= 2) {
     return {
       matchupConfig: MATCHUP_CONFIGS.FINALS,
@@ -133,7 +127,6 @@ function determineInitialRoundAndConfig(totalTeams: number) {
   };
 }
 
-// Main component
 export function GuestTournamentBracket({ selectedTournamentId }: GuestTournamentBracketProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +134,11 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
   const [totalTeams, setTotalTeams] = useState<number>(0);
 
   useEffect(() => {
+    setMatches([]);
+    setTotalTeams(0);
+    setError(null);
+    setLoading(true);
+    
     const fetchBracketData = async () => {
       if (!selectedTournamentId) {
         setLoading(false);
@@ -148,7 +146,6 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
       }
 
       try {
-        setLoading(true);
         const response = await axios.get(`/api/bracket-team?tournamentId=${selectedTournamentId}`);
 
         if (response.data.success) {
@@ -160,16 +157,13 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
             return;
           }
 
-          // Process bracket data
           setTotalTeams(bracketTeams.length);
           const { matchupConfig, initialRound, finalRound } = 
             determineInitialRoundAndConfig(bracketTeams.length);
 
-          // Create matches array
           const bracketMatches: Match[] = [];
           const sortedTeams = [...bracketTeams].sort((a, b) => a.position - b.position);
 
-          // Create initial round matches
           matchupConfig.forEach((matchup, i) => {
             const homeTeam = sortedTeams.find(t => t.position === matchup.home);
             const awayTeam = sortedTeams.find(t => t.position === matchup.away);
@@ -215,7 +209,6 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
             });
           });
 
-          // Create subsequent rounds
           if (bracketTeams.length > 2) {
             for (let round = initialRound + 1; round <= finalRound; round++) {
               const matchesInRound = round === finalRound ? 1 : 2;
@@ -223,7 +216,6 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
               for (let i = 0; i < matchesInRound; i++) {
                 const matchId = `R${round}M${i + 1}`;
 
-                // Find teams from previous round
                 const previousRoundMatches = bracketMatches.filter(m =>
                   m.round === round - 1 &&
                   m.nextMatchId === matchId
