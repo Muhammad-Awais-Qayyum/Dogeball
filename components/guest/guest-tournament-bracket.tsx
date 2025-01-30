@@ -90,12 +90,9 @@ const LoadingState = () => (
   </div>
 );
 
-const PlayoffsNotStartedState = () => (
+const NoTeamsState = () => (
   <div className="flex flex-col items-center justify-center h-36 md:h-48">
-    <div className="text-center max-w-md">
-      <p className="text-gray-300 text-sm md:text-base">The playoffs haven't started yet. Teams are currently competing in the regular season.</p>
-      <p className="text-gray-400 text-xs md:text-sm mt-2">Check back later to see the tournament bracket and follow your favorite teams.</p>
-    </div>
+    <p className="text-gray-400 text-xs md:text-sm">The playoffs haven't started yet. Check back later for tournament updates.</p>
   </div>
 );
 
@@ -152,7 +149,6 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
 
       try {
         setLoading(true);
-        setMatches([]);  // Reset matches when fetching new tournament
         const response = await axios.get(`/api/bracket-team?tournamentId=${selectedTournamentId}`);
 
         if (response.data.success) {
@@ -166,7 +162,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
 
           // Process bracket data
           setTotalTeams(bracketTeams.length);
-          const { matchupConfig, initialRound, finalRound } =
+          const { matchupConfig, initialRound, finalRound } = 
             determineInitialRoundAndConfig(bracketTeams.length);
 
           // Create matches array
@@ -214,7 +210,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
               } : null,
               winner,
               isCompleted,
-              nextMatchId: initialRound < finalRound ?
+              nextMatchId: initialRound < finalRound ? 
                 `R${initialRound + 1}M${Math.ceil((i + 1) / 2)}` : undefined
             });
           });
@@ -236,10 +232,10 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
                 const teamsInThisMatch = previousRoundMatches
                   .map(match => {
                     if (!match.winner) return null;
-                    const team = match.winner === 'home' ?
+                    const team = match.winner === 'home' ? 
                       match.homeTeam : match.awayTeam;
                     if (!team) return null;
-                    return bracketTeams.find(t =>
+                    return bracketTeams.find(t => 
                       t.originalTeamId === team.id
                     );
                   })
@@ -301,7 +297,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
     const roundsMap = matches.reduce((acc, match) => {
       if (totalTeams <= 2 && match.round !== 3) return acc;
       if (totalTeams <= 4 && match.round === 1) return acc;
-
+      
       if (!acc[match.round]) {
         acc[match.round] = [];
       }
@@ -326,7 +322,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
         {loading ? (
           <LoadingState />
         ) : matches.length === 0 ? (
-          <PlayoffsNotStartedState />
+          <NoTeamsState />
         ) : (
           <div className="overflow-x-auto -mx-2 md:mx-0">
             <div className="min-w-[800px] md:min-w-[1000px] pb-4 md:pb-8">
@@ -343,7 +339,7 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
                           className={cn(
                             "relative",
                             matchIndex !== matches.length - 1 &&
-                            "after:absolute after:top-[calc(100%+0.75rem)] md:after:top-[calc(100%+1rem)] after:left-1/2 after:w-px after:h-12 md:after:h-16 after:bg-white/10"
+                              "after:absolute after:top-[calc(100%+0.75rem)] md:after:top-[calc(100%+1rem)] after:left-1/2 after:w-px after:h-12 md:after:h-16 after:bg-white/10"
                           )}
                         >
                           <div
