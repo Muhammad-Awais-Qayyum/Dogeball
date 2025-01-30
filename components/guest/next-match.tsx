@@ -34,68 +34,85 @@ export function NextMatch() {
   const [nextMatch, setNextMatch] = useState<Match | null>(null);
   const [homeTeam, setHomeTeam] = useState<Team | null>(null);
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
-  const [dataStatus, setDataStatus] = useState<'loading' | 'error' | 'fetching_teams' | 'complete'>('loading');
 
   useEffect(() => {
-    const fetchNextMatch = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        setDataStatus('loading');
+    const fetchData = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          setLoading(true);
+          setError(null);
 
-        const matchesResponse = await axios.get("/api/get-all-scheduled-matches");
-        
-        if (matchesResponse.data.success) {
-          const matches = matchesResponse.data.data;
-          const upcomingMatch = matches.find((match: Match) => 
-            match.status === 'scheduled' || match.status === 'in_progress'
-          );
-
-          if (upcomingMatch) {
-            setNextMatch(upcomingMatch);
-            setDataStatus('fetching_teams');
-
-            const [homeTeamRes, awayTeamRes] = await Promise.all([
-              axios.post("/api/get-teams", { teamId: upcomingMatch.homeTeamId }),
-              axios.post("/api/get-teams", { teamId: upcomingMatch.awayTeamId })
-            ]);
-
-            if (homeTeamRes.data.success) {
-              setHomeTeam(homeTeamRes.data.data);
+          const matchesResponse = await axios.get("/api/get-all-scheduled-matches", {
+            headers: {
+              'Cache-Control': 'no-store, no-cache, must-revalidate',
+              'Pragma': 'no-cache'
             }
-            if (awayTeamRes.data.success) {
-              setAwayTeam(awayTeamRes.data.data);
+          });
+
+          if (matchesResponse.data.success) {
+            const upcomingMatch = matchesResponse.data.data.find((match: Match) => 
+              match.status === 'scheduled' || match.status === 'in_progress'
+            );
+
+            if (upcomingMatch) {
+              setNextMatch(upcomingMatch);
+
+              const [homeTeamRes, awayTeamRes] = await Promise.all([
+                axios.post("/api/get-teams", 
+                  { teamId: upcomingMatch.homeTeamId },
+                  {
+                    headers: {
+                      'Cache-Control': 'no-store, no-cache, must-revalidate',
+                      'Pragma': 'no-cache'
+                    }
+                  }
+                ),
+                axios.post("/api/get-teams", 
+                  { teamId: upcomingMatch.awayTeamId },
+                  {
+                    headers: {
+                      'Cache-Control': 'no-store, no-cache, must-revalidate',
+                      'Pragma': 'no-cache'
+                    }
+                  }
+                )
+              ]);
+
+              if (homeTeamRes.data.success && awayTeamRes.data.success) {
+                setHomeTeam(homeTeamRes.data.data);
+                setAwayTeam(awayTeamRes.data.data);
+                break;
+              }
+            } else {
+              break;
             }
-            setDataStatus('complete');
-          } else {
-            setDataStatus('complete');
           }
+        } catch (error) {
+          console.error(`Attempt ${i + 1} failed:`, error);
+          if (i === retries - 1) {
+            setError("Failed to load match data");
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
+            continue;
+          }
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error("Error fetching next match:", error);
-        setError("Failed to load match data");
-        setDataStatus('error');
-      } finally {
-        setLoading(false);
       }
     };
 
-    fetchNextMatch();
+    fetchData();
   }, []);
 
-  const renderLoadingState = () => (
-    <Card className="bg-white/10 border-white/10">
-      <CardContent className="flex flex-col items-center justify-center h-36 md:h-48 gap-2">
-        <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-blue-400" />
-        <p className="text-gray-400 text-sm">
-          {dataStatus === 'loading' ? 'Loading matches...' : 'Loading team details...'}
-        </p>
-      </CardContent>
-    </Card>
-  );
-
-  if (loading || dataStatus === 'fetching_teams') {
-    return renderLoadingState();
+  if (loading) {
+    return (
+      <Card className="bg-white/10 border-white/10">
+        <CardContent className="flex flex-col items-center justify-center h-36 md:h-48 gap-2">
+          <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-blue-400" />
+          <p className="text-gray-400 text-sm">Loading match details...</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (error) {
@@ -134,6 +151,7 @@ export function NextMatch() {
             <div className="flex items-center gap-3 md:gap-4">
               <Avatar className="h-10 w-10 md:h-12 md:w-12 bg-white/10">
                 {homeTeam.teamPhoto?.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={homeTeam.teamPhoto.url} alt={homeTeam.teamName} />
                 ) : (
                   <span className="text-base md:text-lg">{homeTeam.teamName[0]}</span>
@@ -156,6 +174,7 @@ export function NextMatch() {
               </div>
               <Avatar className="h-10 w-10 md:h-12 md:w-12 bg-white/10">
                 {awayTeam.teamPhoto?.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={awayTeam.teamPhoto.url} alt={awayTeam.teamName} />
                 ) : (
                   <span className="text-base md:text-lg">{awayTeam.teamName[0]}</span>
@@ -189,4 +208,5 @@ export function NextMatch() {
     </Card>
   );
 }
+
 export default NextMatch;
