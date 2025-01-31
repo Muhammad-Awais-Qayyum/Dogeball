@@ -76,17 +76,19 @@ interface GuestTournamentBracketProps {
 }
 
 const LoadingState = () => (
-  <div className="flex items-center justify-center h-36 md:h-48">
-    <div className="flex flex-col items-center gap-3 md:gap-4">
-      <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-white" />
-      <p className="text-white text-xs md:text-sm">Loading bracket...</p>
+  <div className="flex items-center justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+    <div className="flex flex-col items-center gap-2 sm:gap-3 md:gap-4">
+      <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7 lg:h-8 lg:w-8 animate-spin text-white" />
+      <p className="text-white text-xs sm:text-sm md:text-base">Loading bracket...</p>
     </div>
   </div>
 );
 
 const NoTeamsState = () => (
-  <div className="flex flex-col items-center justify-center h-36 md:h-48">
-    <p className="text-gray-400 text-xs md:text-sm">The playoffs haven't started yet. Check back later for tournament updates.</p>
+  <div className="flex flex-col items-center justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+    <p className="text-gray-400 text-xs sm:text-sm md:text-base px-4 text-center">
+      The playoffs haven't started yet. Check back later for tournament updates.
+    </p>
   </div>
 );
 
@@ -293,124 +295,124 @@ export function GuestTournamentBracket({ selectedTournamentId }: GuestTournament
    
   
 
-  const rounds = useMemo(() => {
-    const roundsMap = matches.reduce((acc, match) => {
-      if (totalTeams <= 2 && match.round !== 3) return acc;
-      if (totalTeams <= 4 && match.round === 1) return acc;
-      
-      if (!acc[match.round]) {
-        acc[match.round] = [];
-      }
-      acc[match.round].push(match);
-      return acc;
-    }, {} as Record<number, Match[]>);
-
-    return Object.entries(roundsMap)
-      .map(([round, matches]) => ({
-        name: getRoundName(parseInt(round), totalTeams),
-        matches: matches.sort((a, b) => a.position - b.position),
-      }));
-  }, [matches, totalTeams]);
-
-  return (
-    <Card className="bg-white/10 border-white/10">
-      <CardHeader className="p-4 md:p-6">
-        <CardTitle className="text-xl md:text-2xl text-white">Tournament Bracket</CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 md:p-6">
-        {loading ? (
-          <LoadingState />
-        ) : matches.length === 0 ? (
-          <NoTeamsState />
-        ) : (
-          <div className="overflow-x-auto -mx-2 md:mx-0">
-            <div className="min-w-[800px] md:min-w-[1000px] pb-4 md:pb-8">
-              <div className="flex gap-4 md:gap-8">
-                {rounds.map(({ name, matches }, roundIndex) => (
-                  <div key={roundIndex} className="flex-1 space-y-3 md:space-y-4">
-                    <h3 className="text-base md:text-lg font-semibold text-blue-400 text-center mb-4 md:mb-8">
-                      {name}
-                    </h3>
-                    <div className="space-y-4 md:space-y-8">
-                      {matches.map((match, matchIndex) => (
-                        <div
-                          key={match.id}
-                          className={cn(
-                            "relative",
-                            matchIndex !== matches.length - 1 &&
-                              "after:absolute after:top-[calc(100%+0.75rem)] md:after:top-[calc(100%+1rem)] after:left-1/2 after:w-px after:h-12 md:after:h-16 after:bg-white/10"
-                          )}
-                        >
+    const rounds = useMemo(() => {
+      const roundsMap = matches.reduce((acc, match) => {
+        if (totalTeams <= 2 && match.round !== 3) return acc;
+        if (totalTeams <= 4 && match.round === 1) return acc;
+        
+        if (!acc[match.round]) {
+          acc[match.round] = [];
+        }
+        acc[match.round].push(match);
+        return acc;
+      }, {} as Record<number, Match[]>);
+  
+      return Object.entries(roundsMap)
+        .map(([round, matches]) => ({
+          name: getRoundName(parseInt(round), totalTeams),
+          matches: matches.sort((a, b) => a.position - b.position),
+        }));
+    }, [matches, totalTeams]);
+  
+    return (
+      <Card className="bg-white/10 border-white/10">
+        <CardHeader className="p-3 sm:p-4 md:p-5 lg:p-6">
+          <CardTitle className="text-lg sm:text-xl md:text-2xl text-white">Tournament Bracket</CardTitle>
+        </CardHeader>
+        <CardContent className="p-2 sm:p-3 md:p-4 lg:p-6">
+          {loading ? (
+            <LoadingState />
+          ) : matches.length === 0 ? (
+            <NoTeamsState />
+          ) : (
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <div className="min-w-[320px] sm:min-w-[640px] md:min-w-[800px] lg:min-w-[1000px] pb-3 sm:pb-4 md:pb-6 lg:pb-8">
+                <div className="flex gap-2 sm:gap-3 md:gap-6 lg:gap-8">
+                  {rounds.map(({ name, matches }, roundIndex) => (
+                    <div key={roundIndex} className="flex-1 space-y-2 sm:space-y-3 md:space-y-4">
+                      <h3 className="text-sm sm:text-base md:text-lg font-semibold text-blue-400 text-center mb-2 sm:mb-3 md:mb-6 lg:mb-8">
+                        {name}
+                      </h3>
+                      <div className="space-y-2 sm:space-y-4 md:space-y-6 lg:space-y-8">
+                        {matches.map((match, matchIndex) => (
                           <div
+                            key={match.id}
                             className={cn(
-                              "w-full text-left rounded-lg border",
-                              match.isCompleted
-                                ? "bg-green-500/10 border-green-500/20"
-                                : "bg-white/5 border-white/10"
+                              "relative",
+                              matchIndex !== matches.length - 1 &&
+                                "after:absolute after:top-[calc(100%+0.5rem)] sm:after:top-[calc(100%+0.75rem)] md:after:top-[calc(100%+1rem)] after:left-1/2 after:w-px after:h-8 sm:after:h-10 md:after:h-12 lg:after:h-16 after:bg-white/10"
                             )}
                           >
-                            {/* Home Team */}
                             <div
                               className={cn(
-                                "flex items-center gap-2 md:gap-3 p-2 md:p-3 border-b text-sm md:text-base",
-                                match.winner === "home"
-                                  ? "border-green-500/20"
-                                  : "border-white/10"
+                                "w-full text-left rounded-lg border",
+                                match.isCompleted
+                                  ? "bg-green-500/10 border-green-500/20"
+                                  : "bg-white/5 border-white/10"
                               )}
                             >
-                              <div className="w-5 md:w-6 text-xs md:text-sm text-gray-400">
-                                {match.homeTeam?.seed || "-"}
-                              </div>
-                              <div className="flex-1 font-medium text-white truncate">
-                                {match.homeTeam?.name || "TBD"}
-                              </div>
+                              {/* Home Team */}
                               <div
                                 className={cn(
-                                  "w-5 md:w-6 text-right",
+                                  "flex items-center gap-1 sm:gap-2 md:gap-3 p-1.5 sm:p-2 md:p-3 border-b text-xs sm:text-sm md:text-base",
                                   match.winner === "home"
-                                    ? "text-green-500 font-bold"
-                                    : "text-white"
+                                    ? "border-green-500/20"
+                                    : "border-white/10"
                                 )}
                               >
-                                {match.homeTeam?.score ?? "-"}
-                              </div>
-                            </div>
-
-                            {/* Away Team */}
-                            <div
-                              className={cn(
-                                "flex items-center gap-2 md:gap-3 p-2 md:p-3 text-sm md:text-base",
-                                match.winner === "away" && "bg-green-500/5"
-                              )}
-                            >
-                              <div className="w-5 md:w-6 text-xs md:text-sm text-gray-400">
-                                {match.awayTeam?.seed || "-"}
+                                <div className="w-4 sm:w-5 md:w-6 text-xs md:text-sm text-gray-400">
+                                  {match.homeTeam?.seed || "-"}
                                 </div>
-                              <div className="flex-1 font-medium text-white truncate">
-                                {match.awayTeam?.name || "TBD"}
+                                <div className="flex-1 font-medium text-white truncate">
+                                  {match.homeTeam?.name || "TBD"}
+                                </div>
+                                <div
+                                  className={cn(
+                                    "w-4 sm:w-5 md:w-6 text-right",
+                                    match.winner === "home"
+                                      ? "text-green-500 font-bold"
+                                      : "text-white"
+                                  )}
+                                >
+                                  {match.homeTeam?.score ?? "-"}
+                                </div>
                               </div>
+  
+                              {/* Away Team */}
                               <div
                                 className={cn(
-                                  "w-5 md:w-6 text-right",
-                                  match.winner === "away"
-                                    ? "text-green-500 font-bold"
-                                    : "text-white"
+                                  "flex items-center gap-1 sm:gap-2 md:gap-3 p-1.5 sm:p-2 md:p-3 text-xs sm:text-sm md:text-base",
+                                  match.winner === "away" && "bg-green-500/5"
                                 )}
                               >
-                                {match.awayTeam?.score ?? "-"}
+                                <div className="w-4 sm:w-5 md:w-6 text-xs md:text-sm text-gray-400">
+                                  {match.awayTeam?.seed || "-"}
+                                </div>
+                                <div className="flex-1 font-medium text-white truncate">
+                                  {match.awayTeam?.name || "TBD"}
+                                </div>
+                                <div
+                                  className={cn(
+                                    "w-4 sm:w-5 md:w-6 text-right",
+                                    match.winner === "away"
+                                      ? "text-green-500 font-bold"
+                                      : "text-white"
+                                  )}
+                                >
+                                  {match.awayTeam?.score ?? "-"}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
